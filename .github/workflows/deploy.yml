@@ -118,24 +118,34 @@ jobs:
       - name: Apply Supabase migrations
         run: |
           set -euo pipefail
-          supabase --workdir infra/supabase db push
+          supabase --workdir infra/supabase db push --include-all
 
       - name: Verify subscriptions table exists
         run: |
           set -euo pipefail
-          status_and_body="$(curl -sS -w '\n%{http_code}' "${SUPABASE_URL}/rest/v1/subscriptions?select=id&limit=1" \
-            -H "apikey: ${SUPABASE_SECRET_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
-            -H "Accept: application/json")"
+          success=0
+          for attempt in 1 2 3 4 5; do
+            status_and_body="$(curl -sS -w '\n%{http_code}' "${SUPABASE_URL}/rest/v1/subscriptions?select=id&limit=1" \
+              -H "apikey: ${SUPABASE_SECRET_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
+              -H "Accept: application/json")"
 
-          http_status="$(printf '%s\n' "$status_and_body" | tail -n 1)"
-          body="$(printf '%s\n' "$status_and_body" | sed '$d')"
+            http_status="$(printf '%s\n' "$status_and_body" | tail -n 1)"
+            body="$(printf '%s\n' "$status_and_body" | sed '$d')"
 
-          echo "Supabase subscriptions table probe HTTP status: $http_status"
-          echo "$body"
+            echo "Supabase subscriptions table probe attempt $attempt HTTP status: $http_status"
+            echo "$body"
 
-          if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
-            echo "subscriptions table probe failed"
+            if [ "$http_status" -ge 200 ] && [ "$http_status" -lt 300 ]; then
+              success=1
+              break
+            fi
+
+            sleep 3
+          done
+
+          if [ "$success" -ne 1 ]; then
+            echo "subscriptions table probe failed after retries"
             exit 1
           fi
 
