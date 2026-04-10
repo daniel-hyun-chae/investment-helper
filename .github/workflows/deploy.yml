@@ -155,18 +155,18 @@ jobs:
           ls -la "$HOME/.config/.wrangler/logs" || true
 
           python3 - <<'PY'
-import glob
-import os
+          import glob
+          import os
 
-log_paths = sorted(glob.glob(os.path.expanduser("~/.config/.wrangler/logs/*")))
-for path in log_paths[-3:]:
-    print(f"\n===== {path} =====")
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            for i, line in enumerate(f, start=1):
-                if i > 250:
-                    break
-                print(f"{i}: {line.rstrip()}")
-    except Exception as exc:
-        print(f"Could not read {path}: {exc}")
-PY
+          log_paths = sorted(glob.glob(os.path.expanduser("~/.config/.wrangler/logs/*")))
+          for path in log_paths[-3:]:
+              print(f"\n===== {path} =====")
+              try:
+                  with open(path, "r", encoding="utf-8", errors="replace") as f:
+                      for i, line in enumerate(f, start=1):
+                          if i > 250:
+                              break
+                          print(f"{i}: {line.rstrip()}")
+              except Exception as exc:
+                  print(f"Could not read {path}: {exc}")
+          PY
