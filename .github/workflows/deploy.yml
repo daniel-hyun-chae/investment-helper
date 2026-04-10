@@ -63,7 +63,7 @@ jobs:
         run: supabase db push
 
       - name: Deploy bot worker
-        run: pnpm -C apps/bot-worker deploy
+        run: pnpm -C apps/bot-worker run deploy
 
       - name: Deploy admin web
         run: |
