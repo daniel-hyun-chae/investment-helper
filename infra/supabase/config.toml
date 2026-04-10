@@ -1,0 +1,10 @@
+# Supabase local/dev configuration scaffold for investment-helper
+project_id = "investment-helper"
+
+[api]
+enabled = true
+port = 54321
+
+[db]
+port = 54322
+major_version = 16

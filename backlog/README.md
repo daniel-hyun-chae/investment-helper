@@ -1,0 +1,45 @@
+# Backlog
+
+The backlog tracks all implementation work that changes product behavior, architecture, or delivery.
+
+## Structure
+
+- `proposed/`: active and upcoming backlog items.
+- `done/`: completed backlog items.
+- `archived-cr/`: superseded planning artifacts that should be kept for traceability.
+
+## Conventions
+
+- ID format: `BG-NNN`.
+- Current next ID: `BG-002`.
+- Priority scale: `P0` (critical) to `P3` (low).
+- Status lifecycle: `Proposed` -> `Ready` -> `In Progress` -> `Done`.
+
+## Backlog Item Template
+
+Each backlog item should contain:
+
+- Title
+- Priority
+- Status
+- Theme
+- Spec
+- Why now
+- What changes
+- Acceptance criteria
+- Out of scope
+- Dependencies / Related
+- Notes
+
+Change-Orchestrator appends and maintains:
+
+- Implementation Plan
+- Task List
+- Implementation Notes
+- Tests
+
+## Current Items
+
+| ID | Title | Status |
+|---|---|---|
+| BG-001 | Bootstrap investment-helper project workspace | Done |

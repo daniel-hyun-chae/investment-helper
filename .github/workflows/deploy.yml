@@ -1,0 +1,69 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace
+        run: pnpm -r --if-present build
+
+      - name: Apply Supabase migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+      - name: Deploy bot worker
+        run: pnpm -C apps/bot-worker deploy
+
+      - name: Deploy admin web
+        run: |
+          if [ -d "apps/admin-web/.output/public" ]; then
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/.output/public --project-name investment-helper-admin
+          elif [ -d "apps/admin-web/dist" ]; then
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/dist --project-name investment-helper-admin
+          else
+            echo "No deployable admin output found"
+            exit 1
+          fi
+
+      - name: Post-deploy health checks
+        run: |
+          curl -fsSL "$PUBLIC_BASE_URL/health"
+          curl -fsSL "$PUBLIC_BASE_URL/admin/health"

@@ -1,0 +1,19 @@
+name = "investment-helper-bot-worker"
+main = "src/index.ts"
+compatibility_date = "2026-04-10"
+
+[observability]
+enabled = true
+
+[vars]
+APP_ENV = "development"
+
+[[queues.producers]]
+binding = "ANALYSIS_QUEUE"
+queue = "investment-helper-analysis"
+
+[[queues.consumers]]
+queue = "investment-helper-analysis"
+
+[triggers]
+crons = ["*/10 * * * *"]

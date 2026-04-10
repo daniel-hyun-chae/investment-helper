@@ -1,0 +1,29 @@
+{
+  "name": "investment-helper-dev",
+  "dockerComposeFile": "../docker-compose.devcontainer.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspaces/workspace/project",
+  "forwardPorts": [3000, 8787, 5432, 6379],
+  "remoteUser": "node",
+  "containerUser": "node",
+  "updateRemoteUserUID": false,
+  "remoteEnv": {
+    "CI": "true"
+  },
+  "postCreateCommand": "bash -lc 'set -e; bash scripts/devcontainer-fix-home-perms.sh; bash scripts/devcontainer-install-opencode.sh; (pnpm -C apps/bot-worker install --frozen-lockfile || pnpm -C apps/bot-worker install); (pnpm -C apps/admin-web install --frozen-lockfile || pnpm -C apps/admin-web install); (pnpm install --frozen-lockfile || pnpm install)'",
+  "postStartCommand": "bash scripts/devcontainer-fix-home-perms.sh",
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-opencode-data,target=/home/node/.local/share/opencode,type=volume",
+    "source=${localWorkspaceFolderBasename}-opencode-state,target=/home/node/.local/state/opencode,type=volume",
+    "source=${localEnv:HOME}/.local/share/opencode/auth.json,target=/home/node/.local/share/opencode/auth.json,type=bind",
+    "source=${localEnv:HOME}/.ssh,target=/home/node/.ssh,type=bind",
+    "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume",
+    "source=${localEnv:HOME}/.netrc,target=/home/node/.netrc,type=bind",
+    "source=${localWorkspaceFolderBasename}-ms-playwright,target=/home/node/.cache/ms-playwright,type=volume"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": ["sst-dev.opencode"]
+    }
+  }
+}

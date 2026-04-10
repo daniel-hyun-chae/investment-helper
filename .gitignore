@@ -1,0 +1,28 @@
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+.wrangler/
+.vercel/
+.turbo/
+
+# TanStack Start / Vite outputs
+.output/
+apps/admin-web/.output/
+apps/admin-web/dist/
+
+# TypeScript
+*.tsbuildinfo
+
+# Python (future analysis worker)
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
