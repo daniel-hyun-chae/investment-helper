@@ -64,7 +64,19 @@ jobs:
         run: supabase db push
 
       - name: Deploy bot worker
-        run: pnpm -C apps/bot-worker run deploy
+        run: |
+          set -euo pipefail
+          deploy_output="$(pnpm -C apps/bot-worker run deploy 2>&1)"
+          printf '%s\n' "$deploy_output"
+
+          worker_base_url="$(printf '%s\n' "$deploy_output" | python3 -c "import re,sys; s=sys.stdin.read(); m=re.search(r'https://[\\w.-]+\\.workers\\.dev', s); print(m.group(0) if m else '')")"
+
+          if [ -n "$worker_base_url" ]; then
+            echo "WORKER_BASE_URL=$worker_base_url" >> "$GITHUB_ENV"
+            echo "Detected worker URL: $worker_base_url"
+          else
+            echo "Could not auto-detect worker URL from deploy output. Will fall back to PUBLIC_BASE_URL for health checks."
+          fi
 
       - name: Deploy admin web
         run: |
@@ -85,5 +97,12 @@ jobs:
 
       - name: Post-deploy health checks
         run: |
-          curl -fsSL "$PUBLIC_BASE_URL/health"
-          curl -fsSL "$PUBLIC_BASE_URL/admin/health"
+          base_url="${WORKER_BASE_URL:-${PUBLIC_BASE_URL:-}}"
+
+          if [ -z "$base_url" ]; then
+            echo "Missing worker base URL. Set PUBLIC_BASE_URL secret to your Worker URL (e.g. https://<worker>.<subdomain>.workers.dev)."
+            exit 1
+          fi
+
+          curl -fsSL "$base_url/health"
+          curl -fsSL "$base_url/admin/health"
