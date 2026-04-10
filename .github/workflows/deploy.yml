@@ -14,6 +14,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -67,10 +68,16 @@ jobs:
 
       - name: Deploy admin web
         run: |
+          pages_project_name="${CLOUDFLARE_PAGES_PROJECT_NAME:-investment-helper-admin}"
+
+          if ! pnpm -C apps/bot-worker exec wrangler pages project create "$pages_project_name" --production-branch main; then
+            echo "Pages project create returned non-zero. It may already exist; continuing with deploy."
+          fi
+
           if [ -d "apps/admin-web/.output/public" ]; then
-            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/.output/public --project-name investment-helper-admin
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/.output/public --project-name "$pages_project_name"
           elif [ -d "apps/admin-web/dist" ]; then
-            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/dist --project-name investment-helper-admin
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/dist --project-name "$pages_project_name"
           else
             echo "No deployable admin output found"
             exit 1
