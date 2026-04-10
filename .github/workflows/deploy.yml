@@ -61,10 +61,29 @@ jobs:
           host="${host%%/*}"
           project_ref="${host%%.*}"
 
+          runtime_host="${SUPABASE_URL#https://}"
+          runtime_host="${runtime_host#http://}"
+          runtime_host="${runtime_host%%/*}"
+          runtime_ref="${runtime_host%%.*}"
+
           echo "Derived Supabase host: $host"
           echo "Derived Supabase project ref: $project_ref"
+          echo "Derived runtime SUPABASE_URL host: $runtime_host"
+          echo "Derived runtime SUPABASE_URL project ref: $runtime_ref"
           echo "Has SUPABASE_ACCESS_TOKEN: $([[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] && echo yes || echo no)"
           echo "Has SUPABASE_DB_PASSWORD: $([[ -n "${SUPABASE_DB_PASSWORD:-}" ]] && echo yes || echo no)"
+          echo "Has SUPABASE_URL: $([[ -n "${SUPABASE_URL:-}" ]] && echo yes || echo no)"
+          echo "Has SUPABASE_SECRET_KEY: $([[ -n "${SUPABASE_SECRET_KEY:-}" ]] && echo yes || echo no)"
+
+          if [ -z "$project_ref" ] || [ -z "$runtime_ref" ]; then
+            echo "Could not derive project refs from SUPABASE_PROJECT_URL or SUPABASE_URL"
+            exit 1
+          fi
+
+          if [ "$project_ref" != "$runtime_ref" ]; then
+            echo "SUPABASE_PROJECT_URL and SUPABASE_URL point to different projects."
+            exit 1
+          fi
 
       - name: Show migration files
         run: |
@@ -100,6 +119,25 @@ jobs:
         run: |
           set -euo pipefail
           supabase --workdir infra/supabase db push
+
+      - name: Verify subscriptions table exists
+        run: |
+          set -euo pipefail
+          status_and_body="$(curl -sS -w '\n%{http_code}' "${SUPABASE_URL}/rest/v1/subscriptions?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_SECRET_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
+            -H "Accept: application/json")"
+
+          http_status="$(printf '%s\n' "$status_and_body" | tail -n 1)"
+          body="$(printf '%s\n' "$status_and_body" | sed '$d')"
+
+          echo "Supabase subscriptions table probe HTTP status: $http_status"
+          echo "$body"
+
+          if [ "$http_status" -lt 200 ] || [ "$http_status" -ge 300 ]; then
+            echo "subscriptions table probe failed"
+            exit 1
+          fi
 
       - name: Deploy bot worker
         run: |
@@ -153,20 +191,3 @@ jobs:
           set +e
           echo "==== wrangler logs directory ===="
           ls -la "$HOME/.config/.wrangler/logs" || true
-
-          python3 - <<'PY'
-          import glob
-          import os
-
-          log_paths = sorted(glob.glob(os.path.expanduser("~/.config/.wrangler/logs/*")))
-          for path in log_paths[-3:]:
-              print(f"\n===== {path} =====")
-              try:
-                  with open(path, "r", encoding="utf-8", errors="replace") as f:
-                      for i, line in enumerate(f, start=1):
-                          if i > 250:
-                              break
-                          print(f"{i}: {line.rstrip()}")
-              except Exception as exc:
-                  print(f"Could not read {path}: {exc}")
-          PY

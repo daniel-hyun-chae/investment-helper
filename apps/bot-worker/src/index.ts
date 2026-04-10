@@ -58,7 +58,7 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
     }
 
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY)
-    await supabase.from('subscriptions').upsert(
+    const { error } = await supabase.from('subscriptions').upsert(
       {
         telegram_user_id: String(chatId),
         company_code: companyCode,
@@ -67,6 +67,24 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
       },
       { onConflict: 'telegram_user_id,company_code,source' }
     )
+
+    if (error) {
+      console.error('subscription_upsert_failed', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      })
+
+      return json(
+        {
+          ok: false,
+          error: 'Failed to save subscription',
+          reason: error.message
+        },
+        500
+      )
+    }
 
     return json({ ok: true, message: `Watching ${companyCode}` })
   }
