@@ -108,23 +108,28 @@ jobs:
             echo "Could not derive project ref from SUPABASE_PROJECT_URL"
             exit 1
           fi
-          supabase --workdir infra/supabase link --project-ref "$project_ref" --password "$SUPABASE_DB_PASSWORD"
+          supabase --workdir infra link --project-ref "$project_ref" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Show linked migration status
         run: |
           set -euo pipefail
-          supabase --workdir infra/supabase migration list || true
+          supabase --workdir infra migration list || true
 
       - name: Apply Supabase migrations
         run: |
           set -euo pipefail
-          supabase --workdir infra/supabase db push --include-all
+          supabase --workdir infra db push --include-all --debug
+
+      - name: Show linked migration status after push
+        run: |
+          set -euo pipefail
+          supabase --workdir infra migration list || true
 
       - name: Verify subscriptions table exists
         run: |
           set -euo pipefail
           success=0
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
             status_and_body="$(curl -sS -w '\n%{http_code}' "${SUPABASE_URL}/rest/v1/subscriptions?select=id&limit=1" \
               -H "apikey: ${SUPABASE_SECRET_KEY}" \
               -H "Authorization: Bearer ${SUPABASE_SECRET_KEY}" \
