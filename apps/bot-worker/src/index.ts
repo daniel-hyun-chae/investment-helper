@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 type Env = {
   SUPABASE_URL: string
-  SUPABASE_SERVICE_ROLE_KEY: string
+  SUPABASE_SECRET_KEY: string
   TELEGRAM_BOT_TOKEN: string
   OPENDART_API_KEY: string
   ANALYSIS_QUEUE: Queue<AnalysisJob>
@@ -57,7 +57,7 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
       return json({ ok: false, error: 'Company code required' }, 400)
     }
 
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY)
     await supabase.from('subscriptions').upsert(
       {
         telegram_user_id: String(chatId),

@@ -23,7 +23,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
-RUN npm install -g wrangler supabase
 
 # OpenCode CLI (Layer 1 of 2): baked into image
 RUN set -eux; \

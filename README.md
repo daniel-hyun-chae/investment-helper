@@ -72,8 +72,8 @@ project/
 | `TELEGRAM_BOT_TOKEN` | Telegram bot authentication token |
 | `OPENDART_API_KEY` | OpenDART API key |
 | `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon key for safe client calls |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service key for server-side operations |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key for safe client calls |
+| `SUPABASE_SECRET_KEY` | Supabase secret key for server-side operations |
 | `DATABASE_URL` | Postgres connection string |
 | `REDIS_URL` | Redis connection string (local/dev queue tooling) |
 | `CLOUDFLARE_API_TOKEN` | CI/CD deployment token for Cloudflare |
@@ -85,5 +85,5 @@ project/
 |---|---|
 | Admin web dev server | 3000 |
 | Worker local dev | 8787 |
-| Postgres | 5432 |
-| Redis | 6379 |
+| Postgres (host mapped) | 5433 |
+| Redis (host mapped) | 6380 |
