@@ -43,6 +43,35 @@ jobs:
         with:
           version: latest
 
+      - name: Debug deployment inputs
+        run: |
+          set -euo pipefail
+          echo "Node: $(node -v)"
+          echo "pnpm: $(pnpm -v)"
+          echo "supabase: $(supabase --version)"
+          echo "wrangler: $(pnpm -C apps/bot-worker exec wrangler --version)"
+
+          if [ -z "${SUPABASE_PROJECT_URL:-}" ]; then
+            echo "SUPABASE_PROJECT_URL is missing"
+            exit 1
+          fi
+
+          host="${SUPABASE_PROJECT_URL#https://}"
+          host="${host#http://}"
+          host="${host%%/*}"
+          project_ref="${host%%.*}"
+
+          echo "Derived Supabase host: $host"
+          echo "Derived Supabase project ref: $project_ref"
+          echo "Has SUPABASE_ACCESS_TOKEN: $([[ -n "${SUPABASE_ACCESS_TOKEN:-}" ]] && echo yes || echo no)"
+          echo "Has SUPABASE_DB_PASSWORD: $([[ -n "${SUPABASE_DB_PASSWORD:-}" ]] && echo yes || echo no)"
+
+      - name: Show migration files
+        run: |
+          set -euo pipefail
+          ls -la infra/supabase
+          ls -la infra/supabase/migrations
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -51,17 +80,26 @@ jobs:
 
       - name: Link Supabase project
         run: |
+          set -euo pipefail
           host="${SUPABASE_PROJECT_URL#https://}"
           host="${host#http://}"
+          host="${host%%/*}"
           project_ref="${host%%.*}"
           if [ -z "$project_ref" ]; then
             echo "Could not derive project ref from SUPABASE_PROJECT_URL"
             exit 1
           fi
-          supabase link --project-ref "$project_ref" --password "$SUPABASE_DB_PASSWORD"
+          supabase --workdir infra/supabase link --project-ref "$project_ref" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Show linked migration status
+        run: |
+          set -euo pipefail
+          supabase --workdir infra/supabase migration list || true
 
       - name: Apply Supabase migrations
-        run: supabase db push
+        run: |
+          set -euo pipefail
+          supabase --workdir infra/supabase db push
 
       - name: Deploy bot worker
         run: |
@@ -97,6 +135,7 @@ jobs:
 
       - name: Post-deploy health checks
         run: |
+          set -euo pipefail
           base_url="${WORKER_BASE_URL:-${PUBLIC_BASE_URL:-}}"
 
           if [ -z "$base_url" ]; then
@@ -104,5 +143,30 @@ jobs:
             exit 1
           fi
 
-          curl -fsSL "$base_url/health"
-          curl -fsSL "$base_url/admin/health"
+          echo "Health check base URL: $base_url"
+          curl -fsS -i "$base_url/health"
+          curl -fsS -i "$base_url/admin/health"
+
+      - name: Debug logs on failure
+        if: failure()
+        run: |
+          set +e
+          echo "==== wrangler logs directory ===="
+          ls -la "$HOME/.config/.wrangler/logs" || true
+
+          python3 - <<'PY'
+import glob
+import os
+
+log_paths = sorted(glob.glob(os.path.expanduser("~/.config/.wrangler/logs/*")))
+for path in log_paths[-3:]:
+    print(f"\n===== {path} =====")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            for i, line in enumerate(f, start=1):
+                if i > 250:
+                    break
+                print(f"{i}: {line.rstrip()}")
+    except Exception as exc:
+        print(f"Could not read {path}: {exc}")
+PY
