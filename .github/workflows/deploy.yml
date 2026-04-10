@@ -14,7 +14,9 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_URL: ${{ secrets.SUPABASE_PROJECT_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       OPENDART_API_KEY: ${{ secrets.OPENDART_API_KEY }}
@@ -46,8 +48,19 @@ jobs:
       - name: Build workspace
         run: pnpm -r --if-present build
 
+      - name: Link Supabase project
+        run: |
+          host="${SUPABASE_PROJECT_URL#https://}"
+          host="${host#http://}"
+          project_ref="${host%%.*}"
+          if [ -z "$project_ref" ]; then
+            echo "Could not derive project ref from SUPABASE_PROJECT_URL"
+            exit 1
+          fi
+          supabase link --project-ref "$project_ref" --password "$SUPABASE_DB_PASSWORD"
+
       - name: Apply Supabase migrations
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push
 
       - name: Deploy bot worker
         run: pnpm -C apps/bot-worker deploy

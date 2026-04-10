@@ -74,6 +74,9 @@ project/
 | `SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key for safe client calls |
 | `SUPABASE_SECRET_KEY` | Supabase secret key for server-side operations |
+| `SUPABASE_ACCESS_TOKEN` | Supabase access token for CI migration commands |
+| `SUPABASE_PROJECT_URL` | Supabase project URL used to derive project ref in CI |
+| `SUPABASE_DB_PASSWORD` | Supabase database password used by `supabase link` in CI |
 | `DATABASE_URL` | Postgres connection string |
 | `REDIS_URL` | Redis connection string (local/dev queue tooling) |
 | `CLOUDFLARE_API_TOKEN` | CI/CD deployment token for Cloudflare |
