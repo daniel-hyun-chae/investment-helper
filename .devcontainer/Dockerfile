@@ -38,6 +38,27 @@ RUN set -eux; \
   fi; \
   opencode --version || true
 
+# Ensure `opencode` works from plain `docker exec` shells too.
+# If the binary is installed under user home, this shim resolves it from common locations.
+RUN cat > /usr/local/bin/opencode <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+for candidate in \
+  /home/node/.opencode/bin/opencode \
+  /home/node/.npm-global/bin/opencode \
+  /root/.opencode/bin/opencode
+do
+  if [ -x "$candidate" ]; then
+    exec "$candidate" "$@"
+  fi
+done
+
+echo "opencode not found in expected locations" >&2
+exit 127
+EOF
+RUN chmod +x /usr/local/bin/opencode
+
 RUN mkdir -p /home/${REMOTE_USER}/.cache \
     /home/${REMOTE_USER}/.cache/ms-playwright \
     /home/${REMOTE_USER}/.local/share/opencode \

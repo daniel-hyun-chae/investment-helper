@@ -4,7 +4,10 @@ import appCss from '../styles/app.css?url'
 export const Route = createRootRoute({
   head: () => ({
     links: [{ rel: 'stylesheet', href: appCss }],
-    meta: [{ title: 'investment-helper admin' }]
+    meta: [
+      { title: 'investment-helper admin' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+    ]
   }),
   component: RootComponent
 })

@@ -25,23 +25,23 @@ This map describes the initial scaffold for `investment-helper`.
 
 ### `apps/bot-worker`
 
-- Cloudflare Worker scaffold for Telegram webhook, queue producers/consumers, and cron-driven polling.
+- Cloudflare Worker scaffold for Telegram webhook, queue producers/consumers, cron-driven polling, and company summary/search API routes.
 - `wrangler.toml` contains worker name, queue bindings, and cron placeholder.
 
 ### `apps/admin-web`
 
-- TanStack Start + Vite admin scaffold.
-- Includes route placeholders and static build placeholder output for deployment pipeline wiring.
+- TanStack Start + Vite app with company search route and company summary trend route.
+- Includes Korean-first translation-ready labels and responsive summary chart UI.
 
 ## Shared Packages
 
 ### `packages/contracts`
 
-- Canonical types for subscriptions, disclosures, filing events, and analysis jobs.
+- Canonical types for subscriptions, disclosures, filing events, analysis jobs, and company summary payloads.
 
 ### `packages/connectors`
 
-- Interfaces and placeholders for external API connectors (OpenDART first).
+- OpenDART connector utilities for corpCode zip ingestion, periodic disclosure checks, and financial normalization.
 
 ### `packages/analysis`
 
@@ -55,7 +55,7 @@ This map describes the initial scaffold for `investment-helper`.
 
 ### `infra/supabase`
 
-- `config.toml` scaffold and SQL migrations for initial subscriptions schema.
+- `config.toml` scaffold and SQL migrations for subscriptions plus company directory/summary cache tables.
 
 ## Governance
 

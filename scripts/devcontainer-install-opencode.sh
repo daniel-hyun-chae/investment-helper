@@ -21,6 +21,19 @@ INSECURE="${OPENCODE_INSTALL_INSECURE:-0}"
 export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX:-$HOME/.npm-global}"
 mkdir -p "$NPM_CONFIG_PREFIX"
 
+ensure_global_opencode() {
+  if command -v opencode >/dev/null 2>&1; then
+    current_path="$(command -v opencode)"
+    if [ "$current_path" = "/usr/local/bin/opencode" ]; then
+      return 0
+    fi
+
+    if command -v sudo >/dev/null 2>&1; then
+      sudo ln -sf "$current_path" /usr/local/bin/opencode || true
+    fi
+  fi
+}
+
 if [ -f "$CA_CERT" ]; then
   export NODE_EXTRA_CA_CERTS="$CA_CERT"
   export SSL_CERT_FILE="$CA_CERT"
@@ -47,6 +60,7 @@ install_with_curl() {
 
 if install_with_curl; then
   if command -v opencode >/dev/null 2>&1; then
+    ensure_global_opencode
     opencode --version || true
     exit 0
   fi
@@ -60,6 +74,7 @@ fi
 
 if npm install -g opencode-ai >/dev/null 2>&1; then
   if command -v opencode >/dev/null 2>&1; then
+    ensure_global_opencode
     opencode --version || true
     exit 0
   fi

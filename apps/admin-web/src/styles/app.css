@@ -1,10 +1,12 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
 body {
   margin: 0;
+  background: #f5f7fb;
+  color: #111827;
 }
 
 main {
@@ -15,4 +17,224 @@ main {
 
 h1 {
   margin-top: 0;
+}
+
+a {
+  color: #2d6cdf;
+}
+
+.companies-page,
+.summary-page {
+  max-width: 960px;
+}
+
+.companies-header h1,
+.summary-header h1 {
+  margin-bottom: 0.4rem;
+}
+
+.companies-header p,
+.summary-header p {
+  margin-top: 0;
+  color: #4b5563;
+}
+
+.search-panel {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+  margin-bottom: 1rem;
+}
+
+.search-panel label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.search-panel input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  font-size: 1rem;
+}
+
+.company-result-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.company-result-list button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.8rem 0.9rem;
+  cursor: pointer;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.company-result-list button:hover {
+  border-color: #2d6cdf;
+}
+
+.company-result-list span {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.error-text {
+  color: #b91c1c;
+}
+
+.back-button {
+  border: 0;
+  background: transparent;
+  color: #2d6cdf;
+  padding: 0;
+  margin-bottom: 1rem;
+  cursor: pointer;
+}
+
+.summary-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.control-group {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 0.75rem;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+}
+
+.control-group > span {
+  display: block;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 0.4rem;
+}
+
+.control-group button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  margin-right: 0.35rem;
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.control-group button.active {
+  border-color: #2d6cdf;
+  color: #2d6cdf;
+  font-weight: 600;
+}
+
+.summary-meta {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.8rem;
+}
+
+.summary-meta p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #4b5563;
+}
+
+.chart-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+  padding: 0.9rem;
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.legend span {
+  font-size: 0.85rem;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legend span::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--legend-color);
+}
+
+.chart-scroll-wrapper {
+  overflow-x: auto;
+}
+
+.summary-chart {
+  min-width: 640px;
+  width: 100%;
+  height: 300px;
+  border: 1px solid #f0f2f5;
+  border-radius: 8px;
+  background: #fcfdff;
+}
+
+.x-axis-labels {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+.x-axis-labels span {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+@media (max-width: 800px) {
+  main {
+    padding: 1rem;
+  }
+
+  .summary-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .search-panel,
+  .control-group,
+  .chart-card {
+    padding: 0.75rem;
+  }
+
+  .legend {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-chart {
+    min-width: 560px;
+    height: 250px;
+  }
 }

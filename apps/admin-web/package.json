@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@investment-helper/contracts": "workspace:*",
     "@tanstack/react-router": "^1.166.11",
     "@tanstack/react-router-devtools": "^1.166.11",
     "@tanstack/react-start": "^1.166.11",

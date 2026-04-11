@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
   component: Home
@@ -14,6 +14,9 @@ function Home() {
         <li>Inspect queue and polling status</li>
         <li>Review subscription counts</li>
       </ul>
+      <p>
+        <Link to="/companies">Open company summary route</Link>
+      </p>
     </main>
   )
 }

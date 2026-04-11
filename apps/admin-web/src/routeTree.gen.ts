@@ -9,38 +9,65 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as CompaniesRouteImport } from './routes/companies'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CompaniesCorpCodeSummaryRouteImport } from './routes/companies.$corpCode.summary'
 
+const CompaniesRoute = CompaniesRouteImport.update({
+  id: '/companies',
+  path: '/companies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CompaniesCorpCodeSummaryRoute =
+  CompaniesCorpCodeSummaryRouteImport.update({
+    id: '/$corpCode/summary',
+    path: '/$corpCode/summary',
+    getParentRoute: () => CompaniesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/companies': typeof CompaniesRouteWithChildren
+  '/companies/$corpCode/summary': typeof CompaniesCorpCodeSummaryRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/companies': typeof CompaniesRouteWithChildren
+  '/companies/$corpCode/summary': typeof CompaniesCorpCodeSummaryRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/companies': typeof CompaniesRouteWithChildren
+  '/companies/$corpCode/summary': typeof CompaniesCorpCodeSummaryRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/companies' | '/companies/$corpCode/summary'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/companies' | '/companies/$corpCode/summary'
+  id: '__root__' | '/' | '/companies' | '/companies/$corpCode/summary'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CompaniesRoute: typeof CompaniesRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/companies': {
+      id: '/companies'
+      path: '/companies'
+      fullPath: '/companies'
+      preLoaderRoute: typeof CompaniesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +75,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/companies/$corpCode/summary': {
+      id: '/companies/$corpCode/summary'
+      path: '/$corpCode/summary'
+      fullPath: '/companies/$corpCode/summary'
+      preLoaderRoute: typeof CompaniesCorpCodeSummaryRouteImport
+      parentRoute: typeof CompaniesRoute
+    }
   }
 }
 
+interface CompaniesRouteChildren {
+  CompaniesCorpCodeSummaryRoute: typeof CompaniesCorpCodeSummaryRoute
+}
+
+const CompaniesRouteChildren: CompaniesRouteChildren = {
+  CompaniesCorpCodeSummaryRoute: CompaniesCorpCodeSummaryRoute,
+}
+
+const CompaniesRouteWithChildren = CompaniesRoute._addFileChildren(
+  CompaniesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CompaniesRoute: CompaniesRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

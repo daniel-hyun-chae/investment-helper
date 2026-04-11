@@ -11,7 +11,7 @@ The backlog tracks all implementation work that changes product behavior, archit
 ## Conventions
 
 - ID format: `BG-NNN`.
-- Current next ID: `BG-002`.
+- Current next ID: `BG-003`.
 - Priority scale: `P0` (critical) to `P3` (low).
 - Status lifecycle: `Proposed` -> `Ready` -> `In Progress` -> `Done`.
 
@@ -42,4 +42,5 @@ Change-Orchestrator appends and maintains:
 
 | ID | Title | Status |
 |---|---|---|
+| BG-002 | OpenDART company summary trend graph with cached refresh checks | Done |
 | BG-001 | Bootstrap investment-helper project workspace | Done |
