@@ -30,6 +30,7 @@ export const openDartConnector: Connector = {
 }
 
 const OPEN_DART_API_BASE = 'https://opendart.fss.or.kr/api'
+const OPEN_DART_REQUEST_TIMEOUT_MS = 15_000
 
 const REPORT_CODES = [
   { reportCode: '11013', quarter: 1 },
@@ -99,14 +100,122 @@ function redactApiKey(input: string, apiKey: string): string {
   return output
 }
 
-function shouldRetryStatus(status: number): boolean {
-  return status === 429 || status >= 500
-}
-
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+function shouldRetryOpenDartStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+function buildOpenDartRequestHeaders(): Record<string, string> {
+  return {
+    accept: 'application/json,text/plain,*/*',
+    'user-agent': 'investment-helper/1.0 (+opendart-json)'
+  }
+}
+
+function buildOpenDartErrorFromRedirect(path: string, status: number, location: string, apiKey: string): OpenDartSyncError {
+  const sanitizedLocation = redactApiKey(location, apiKey)
+  if (sanitizedLocation.includes('/error1.html')) {
+    return new OpenDartSyncError(
+      `OpenDART rejected ${path} request (key/access denied or temporary service protection).`,
+      'OPENDART_KEY_OR_ACCESS_DENIED',
+      `redirect=${sanitizedLocation || 'unknown'}`
+    )
+  }
+
+  return new OpenDartSyncError(
+    `Unexpected OpenDART redirect for ${path} request (HTTP ${status}).`,
+    'OPENDART_REDIRECTED',
+    `redirect=${sanitizedLocation || 'unknown'}`
+  )
+}
+
+async function fetchOpenDartResponse(path: string, params: Record<string, string>): Promise<Response> {
+  const apiKey = params.crtfc_key ?? ''
+  const requestUrl = buildOpenDartUrl(path, params)
+  const retryDelaysMs = [400, 1000, 2000]
+  let lastError: unknown
+
+  for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort('opendart-timeout')
+    }, OPEN_DART_REQUEST_TIMEOUT_MS)
+
+    try {
+      const response = await fetch(requestUrl, {
+        redirect: 'manual',
+        headers: buildOpenDartRequestHeaders(),
+        signal: controller.signal
+      })
+
+      if (response.status >= 300 && response.status < 400) {
+        throw buildOpenDartErrorFromRedirect(path, response.status, response.headers.get('location') ?? '', apiKey)
+      }
+
+      if (shouldRetryOpenDartStatus(response.status) && attempt < retryDelaysMs.length) {
+        await waitMs(retryDelaysMs[attempt])
+        continue
+      }
+
+      if (response.status === 429) {
+        throw new OpenDartSyncError(
+          `OpenDART rate limit reached for ${path}. Retry later.`,
+          'OPENDART_RATE_LIMITED',
+          `status=429`
+        )
+      }
+
+      if (response.status >= 500) {
+        throw new OpenDartSyncError(
+          `OpenDART service unavailable for ${path} (HTTP ${response.status}).`,
+          'OPENDART_SERVICE_UNAVAILABLE',
+          `status=${response.status}`
+        )
+      }
+
+      if (!response.ok) {
+        throw new OpenDartSyncError(
+          `OpenDART request failed for ${path} (HTTP ${response.status}).`,
+          'OPENDART_HTTP_ERROR',
+          `status=${response.status}`
+        )
+      }
+
+      return response
+    } catch (error) {
+      lastError = error
+
+      if (error instanceof OpenDartSyncError) {
+        throw error
+      }
+
+      if (attempt < retryDelaysMs.length) {
+        await waitMs(retryDelaysMs[attempt])
+        continue
+      }
+
+      const detail = error instanceof Error ? redactApiKey(error.message, apiKey) : undefined
+      throw new OpenDartSyncError(
+        `OpenDART request failed before receiving response for ${path}.`,
+        'OPENDART_NETWORK_ERROR',
+        detail
+      )
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const detail = lastError instanceof Error ? redactApiKey(lastError.message, params.crtfc_key ?? '') : undefined
+  throw new OpenDartSyncError(
+    `OpenDART request failed before receiving response for ${path}.`,
+    'OPENDART_NETWORK_ERROR',
+    detail
+  )
 }
 
 function decodeXmlEntities(value: string): string {
@@ -197,14 +306,20 @@ function buildOpenDartUrl(path: string, params: Record<string, string>): string 
 }
 
 async function fetchOpenDartJson<T>(path: string, params: Record<string, string>): Promise<ApiListResponse<T>> {
-  const response = await fetch(buildOpenDartUrl(path, params))
+  const response = await fetchOpenDartResponse(path, params)
 
-  if (!response.ok) {
-    throw new Error(`OpenDART request failed with status ${response.status}`)
+  try {
+    const data = (await response.json()) as ApiListResponse<T>
+    return data
+  } catch (error) {
+    const apiKey = params.crtfc_key ?? ''
+    const detail = error instanceof Error ? redactApiKey(error.message, apiKey) : undefined
+    throw new OpenDartSyncError(
+      `OpenDART returned non-JSON payload for ${path}.`,
+      'OPENDART_INVALID_JSON_RESPONSE',
+      detail
+    )
   }
-
-  const data = (await response.json()) as ApiListResponse<T>
-  return data
 }
 
 function chooseAmountField(row: OpenDartAccountRow): number | null {
@@ -363,82 +478,7 @@ export async function fetchAndParseCorpDirectory(apiKey: string): Promise<Compan
     throw new OpenDartSyncError('OpenDART API key is missing.', 'OPENDART_API_KEY_MISSING')
   }
 
-  const requestUrl = buildOpenDartUrl('corpCode.xml', { crtfc_key: apiKey })
-  const retryDelaysMs = [500, 1500, 3000]
-  let response: Response | null = null
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
-    try {
-      response = await fetch(requestUrl, {
-        redirect: 'manual',
-        headers: {
-          accept: 'application/octet-stream,application/zip,*/*',
-          'user-agent': 'investment-helper/1.0 (+corp-directory-sync)'
-        }
-      })
-
-      if (!shouldRetryStatus(response.status) || attempt === retryDelaysMs.length) {
-        break
-      }
-
-      await waitMs(retryDelaysMs[attempt])
-      continue
-    } catch (error) {
-      lastError = error
-      if (attempt === retryDelaysMs.length) {
-        break
-      }
-      await waitMs(retryDelaysMs[attempt])
-    }
-  }
-
-  if (!response) {
-    const detail = lastError instanceof Error ? redactApiKey(lastError.message, apiKey) : undefined
-    throw new OpenDartSyncError('OpenDART request failed before receiving response.', 'OPENDART_NETWORK_ERROR', detail)
-  }
-
-  if (response.status === 429) {
-    throw new OpenDartSyncError(
-      'OpenDART rate limit reached while requesting corpCode. Retry later.',
-      'OPENDART_RATE_LIMITED',
-      `status=429`
-    )
-  }
-
-  if (response.status >= 500) {
-    throw new OpenDartSyncError(
-      `OpenDART service unavailable while requesting corpCode (HTTP ${response.status}).`,
-      'OPENDART_SERVICE_UNAVAILABLE',
-      `status=${response.status}`
-    )
-  }
-
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get('location') ?? ''
-    const sanitizedLocation = redactApiKey(location, apiKey)
-
-    if (sanitizedLocation.includes('/error1.html')) {
-      throw new OpenDartSyncError(
-        'OpenDART rejected corpCode request (key/access denied or temporary service protection).',
-        'OPENDART_KEY_OR_ACCESS_DENIED',
-        `redirect=${sanitizedLocation || 'unknown'}`
-      )
-    }
-
-    throw new OpenDartSyncError(
-      `Unexpected OpenDART redirect for corpCode request (HTTP ${response.status}).`,
-      'OPENDART_REDIRECTED',
-      `redirect=${sanitizedLocation || 'unknown'}`
-    )
-  }
-
-  if (!response.ok) {
-    throw new OpenDartSyncError(
-      `Failed to download corpCode zip (HTTP ${response.status}).`,
-      'OPENDART_HTTP_ERROR'
-    )
-  }
+  const response = await fetchOpenDartResponse('corpCode.xml', { crtfc_key: apiKey })
 
   const contentType = response.headers.get('content-type') ?? ''
   const zipBuffer = await response.arrayBuffer()

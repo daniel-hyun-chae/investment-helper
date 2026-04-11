@@ -188,6 +188,9 @@ function CompanySummaryRoute() {
           {messages.basisLabel}: <strong>{state.status === 'ready' ? state.data.basis : '-'}</strong>
         </p>
         <p>{messages.marketCapNotice}</p>
+        {state.status === 'ready' && state.data.refreshWarning ? (
+          <p className="warning-text">{`OpenDART refresh warning: ${state.data.refreshWarning.message}`}</p>
+        ) : null}
       </section>
 
       {state.status === 'loading' ? <p>{messages.loading}</p> : null}

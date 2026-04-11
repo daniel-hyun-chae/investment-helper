@@ -118,4 +118,10 @@ test.describe('company summary local e2e', () => {
 
     await expect(page.getByLabel('summary trend chart')).toBeVisible()
   })
+
+  test('direct company summary route opens chart e2e flow', async ({ page }) => {
+    await page.goto('/companies/00126380/summary?period=yearly&range=5')
+    await expect(page.getByRole('heading', { name: 'NAVER' })).toBeVisible()
+    await expect(page.getByLabel('summary trend chart')).toBeVisible()
+  })
 })

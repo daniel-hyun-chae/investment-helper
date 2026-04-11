@@ -43,8 +43,8 @@ Manual OpenDART corpCode requests succeed, but deployed `POST /api/companies/syn
 - [x] Add worker batched sync API behavior.
 - [x] Update admin-web sync client and UI flow for batched completion.
 - [x] Update real-DART e2e sync helper for batch completion.
-- [ ] Run validation and record outcomes.
-- [ ] Move item to done and update backlog summary.
+- [x] Run validation and record outcomes.
+- [x] Move item to done and update backlog summary.
 
 ## Implementation Notes
 
@@ -56,7 +56,16 @@ Manual OpenDART corpCode requests succeed, but deployed `POST /api/companies/syn
 - 2026-04-11: Reduced per-request sync batch size to 400, added cached-directory short-circuit for offset=0, and added progress fields for UI and e2e looping (`done`, `nextOffset`, `total`, `elapsedMs`).
 - 2026-04-11: Updated web sync flow to iterate batches until done and refresh sync status count from server after completion.
 - 2026-04-11: Updated real-dart e2e sync helper to loop batch sync calls with per-batch timeout instead of one long blocking request.
+- 2026-04-11: Added OpenDART redirect/timeout protection for JSON endpoints (`list.json`, `fnlttSinglAcnt.json`) via shared guarded fetch with manual redirect handling to prevent unhandled `Too many redirects` failures.
+- 2026-04-11: Summary endpoint now tolerates refresh-check failures and returns cached data with `refreshWarning` instead of hard 500 when OpenDART list API is blocked.
+- 2026-04-11: Added e2e direct-summary-open assertions to verify full flow from search result and direct summary route.
 
 ## Tests
 
-- Pending.
+- `pnpm install --frozen-lockfile` (pass)
+- `pnpm -r --if-present lint` (pass)
+- `pnpm -r --if-present typecheck` (pass)
+- `pnpm -r --if-present test` (pass; no unit test files)
+- `pnpm -r --if-present build` (pass)
+- `pnpm -C apps/bot-worker deploy:check` (pass)
+- Real-DART e2e against currently deployed worker still times out until latest worker code is deployed; updated tests are ready for rerun after deploy.

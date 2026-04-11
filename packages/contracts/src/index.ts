@@ -49,7 +49,13 @@ export const CompanySummaryResponseSchema = z.object({
       available: z.literal(false),
       reason: z.literal('not_supported_by_opendart_v1')
     })
-    .default({ available: false, reason: 'not_supported_by_opendart_v1' })
+    .default({ available: false, reason: 'not_supported_by_opendart_v1' }),
+  refreshWarning: z
+    .object({
+      code: z.string(),
+      message: z.string()
+    })
+    .optional()
 })
 
 export type FilingEvent = z.infer<typeof FilingEventSchema>

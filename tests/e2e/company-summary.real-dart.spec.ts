@@ -108,4 +108,22 @@ test.describe('company summary real OpenDART e2e', () => {
     await expect(page).toHaveURL(/\/companies\/\d{8}\/summary/, { timeout: 30_000 })
     await expect(page.getByLabel('summary trend chart')).toBeVisible({ timeout: 30_000 })
   })
+
+  test('direct company summary open works after real sync', async ({ page }) => {
+    await syncCompaniesOrFail()
+
+    await page.goto('/companies')
+    await page.getByLabel('\uD68C\uC0AC \uAC80\uC0C9').fill(targetCompany)
+    const companyButton = page.getByRole('button', { name: new RegExp(targetCompany) }).first()
+    await expect(companyButton).toBeVisible({ timeout: 30_000 })
+
+    const text = await companyButton.textContent()
+    const corpMatch = text?.match(/(\d{8})/)
+    if (!corpMatch) {
+      throw new Error(`Failed to parse corp code from search result: ${text}`)
+    }
+
+    await page.goto(`/companies/${corpMatch[1]}/summary?period=yearly&range=5`)
+    await expect(page.getByLabel('summary trend chart')).toBeVisible({ timeout: 45_000 })
+  })
 })

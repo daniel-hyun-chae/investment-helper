@@ -401,6 +401,7 @@ async function shouldRefreshCompanyFinancials(
   refresh: boolean
   latestDisclosureRceptNo: string | null
   latestDisclosureRceptDate: string | null
+  refreshCheckWarning: { code: string; message: string; detail?: string } | null
 }> {
   const refreshStateResult = await supabase
     .from('company_refresh_state')
@@ -425,13 +426,31 @@ async function shouldRefreshCompanyFinancials(
     throw new Error(`company_financial_points count failed: ${countResult.error.message}`)
   }
 
-  const latestDisclosure = shouldCheckOpenDartRefresh(env)
-    ? await fetchLatestPeriodicDisclosure(
+  let latestDisclosure: { rceptNo: string; rceptDate: string } | null = null
+  let refreshCheckWarning: { code: string; message: string; detail?: string } | null = null
+
+  if (shouldCheckOpenDartRefresh(env)) {
+    try {
+      latestDisclosure = await fetchLatestPeriodicDisclosure(
         env.OPENDART_API_KEY,
         corpCode,
         refreshState?.last_checked_at ?? undefined
       )
-    : null
+    } catch (error) {
+      if (error instanceof OpenDartSyncError) {
+        refreshCheckWarning = {
+          code: error.code,
+          message: error.message,
+          detail: error.detail
+        }
+      } else if (error instanceof Error) {
+        refreshCheckWarning = {
+          code: 'OPENDART_REFRESH_CHECK_FAILED',
+          message: error.message
+        }
+      }
+    }
+  }
 
   const hasCache = (countResult.count ?? 0) > 0
   const hasNewDisclosure = shouldCheckOpenDartRefresh(env)
@@ -443,7 +462,8 @@ async function shouldRefreshCompanyFinancials(
   return {
     refresh: !hasCache || hasNewDisclosure,
     latestDisclosureRceptNo: latestDisclosure?.rceptNo ?? null,
-    latestDisclosureRceptDate: latestDisclosure?.rceptDate ?? null
+    latestDisclosureRceptDate: latestDisclosure?.rceptDate ?? null,
+    refreshCheckWarning
   }
 }
 
@@ -572,6 +592,14 @@ async function getCompanySummary(
   }
 
   const refreshDecision = await shouldRefreshCompanyFinancials(env, supabase, corpCode)
+  if (refreshDecision.refreshCheckWarning) {
+    console.warn('summary_refresh_check_warning', {
+      corpCode,
+      code: refreshDecision.refreshCheckWarning.code,
+      message: refreshDecision.refreshCheckWarning.message,
+      detail: refreshDecision.refreshCheckWarning.detail
+    })
+  }
 
   let selectedBasis: 'CFS' | 'OFS' = 'CFS'
   if (refreshDecision.refresh) {
@@ -643,7 +671,13 @@ async function getCompanySummary(
     marketCap: {
       available: false,
       reason: 'not_supported_by_opendart_v1'
-    }
+    },
+    refreshWarning: refreshDecision.refreshCheckWarning
+      ? {
+          code: refreshDecision.refreshCheckWarning.code,
+          message: refreshDecision.refreshCheckWarning.message
+        }
+      : undefined
   })
 
   return json({ ok: true, data: payload })

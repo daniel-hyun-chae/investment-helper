@@ -124,6 +124,10 @@ a {
   color: #b91c1c;
 }
 
+.warning-text {
+  color: #92400e;
+}
+
 .back-button {
   border: 0;
   background: transparent;
