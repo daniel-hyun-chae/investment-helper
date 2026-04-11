@@ -87,6 +87,20 @@ export class OpenDartSyncError extends Error {
   }
 }
 
+function redactApiKey(input: string, apiKey: string): string {
+  if (!input) {
+    return input
+  }
+
+  let output = input
+  if (apiKey) {
+    output = output.split(apiKey).join('***')
+  }
+
+  output = output.replace(/crtfc_key=([^&\s]+)/gi, 'crtfc_key=***')
+  return output
+}
+
 function formatDateYYYYMMDD(value: Date): string {
   const year = String(value.getUTCFullYear())
   const month = String(value.getUTCMonth() + 1).padStart(2, '0')
@@ -300,7 +314,39 @@ export async function fetchAndParseCorpDirectory(apiKey: string): Promise<Compan
     throw new OpenDartSyncError('OpenDART API key is missing.', 'OPENDART_API_KEY_MISSING')
   }
 
-  const response = await fetch(buildOpenDartUrl('corpCode.xml', { crtfc_key: apiKey }))
+  const requestUrl = buildOpenDartUrl('corpCode.xml', { crtfc_key: apiKey })
+  let response: Response
+  try {
+    response = await fetch(requestUrl, {
+      redirect: 'manual',
+      headers: {
+        accept: 'application/octet-stream,application/zip,*/*',
+        'user-agent': 'investment-helper/1.0 (+corp-directory-sync)'
+      }
+    })
+  } catch (error) {
+    const detail = error instanceof Error ? redactApiKey(error.message, apiKey) : undefined
+    throw new OpenDartSyncError('OpenDART request failed before receiving response.', 'OPENDART_NETWORK_ERROR', detail)
+  }
+
+  if (response.status >= 300 && response.status < 400) {
+    const location = response.headers.get('location') ?? ''
+    const sanitizedLocation = redactApiKey(location, apiKey)
+
+    if (sanitizedLocation.includes('/error1.html')) {
+      throw new OpenDartSyncError(
+        'OpenDART rejected corpCode request (key/access denied or temporary service protection).',
+        'OPENDART_KEY_OR_ACCESS_DENIED',
+        `redirect=${sanitizedLocation || 'unknown'}`
+      )
+    }
+
+    throw new OpenDartSyncError(
+      `Unexpected OpenDART redirect for corpCode request (HTTP ${response.status}).`,
+      'OPENDART_REDIRECTED',
+      `redirect=${sanitizedLocation || 'unknown'}`
+    )
+  }
 
   if (!response.ok) {
     throw new OpenDartSyncError(
