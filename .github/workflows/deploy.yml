@@ -96,6 +96,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build workspace
+        env:
+          VITE_API_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
         run: pnpm -r --if-present build
 
       - name: Link Supabase project
