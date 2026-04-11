@@ -335,7 +335,7 @@ async function upsertCompanyDirectoryBatch(
   const total = directory.length
 
   const safeOffset = Math.max(0, offset)
-  const safeLimit = Math.max(1, Math.min(limit, 5000))
+  const safeLimit = Math.max(1, Math.min(limit, 400))
   const slice = directory.slice(safeOffset, safeOffset + safeLimit)
 
   console.log('company_sync_batch', {
@@ -379,6 +379,18 @@ async function upsertCompanyDirectoryBatch(
     nextOffset: done ? null : nextOffset,
     done
   }
+}
+
+async function hasAnyCompanyDirectoryData(supabase: SupabaseClient): Promise<number> {
+  const result = await supabase
+    .from('company_directory')
+    .select('corp_code', { count: 'exact', head: true })
+
+  if (result.error) {
+    throw new Error(`company_directory count failed: ${result.error.message}`)
+  }
+
+  return result.count ?? 0
 }
 
 async function shouldRefreshCompanyFinancials(
@@ -742,14 +754,45 @@ async function syncCompanyDirectoryBatch({
   offset: number
   limit: number
 }): Promise<Response> {
+  const startedAt = Date.now()
+  const cpuBudgetMs = 18_000
+
+  if (offset > 0 && Date.now() - startedAt > cpuBudgetMs) {
+    return json({
+      ok: true,
+      imported: 0,
+      total: 0,
+      done: false,
+      nextOffset: offset,
+      cpuYielded: true
+    })
+  }
+
   try {
+    if (offset === 0) {
+      const cachedCount = await hasAnyCompanyDirectoryData(supabase)
+      if (cachedCount > 0) {
+        return json({
+          ok: true,
+          imported: 0,
+          total: cachedCount,
+          done: true,
+          nextOffset: null,
+          syncSkipped: true,
+          warningCode: 'DIRECTORY_ALREADY_SYNCED',
+          warningMessage: 'Directory already populated; skipped full re-sync to avoid CPU limit.'
+        })
+      }
+    }
+
     const result = await upsertCompanyDirectoryBatch(env, supabase, offset, limit)
     return json({
       ok: true,
       imported: result.imported,
       total: result.total,
       done: result.done,
-      nextOffset: result.nextOffset
+      nextOffset: result.nextOffset,
+      elapsedMs: Date.now() - startedAt
     })
   } catch (error) {
     if (error instanceof OpenDartSyncError) {

@@ -61,8 +61,16 @@ function CompaniesRoute() {
       if (syncResult.syncSkipped) {
         setNotice(syncResult.warningMessage ?? messages.searchSyncUsingCache)
       } else {
-        setNotice(messages.searchSyncDone)
+        const summary =
+          syncResult.total && syncResult.total > 0
+            ? `${messages.searchSyncDone} (${syncResult.imported}/${syncResult.total}, batches=${syncResult.batches ?? 1})`
+            : messages.searchSyncDone
+        setNotice(summary)
       }
+
+      const status = await getCompanySyncStatus()
+      setSynced(status.synced)
+      setSyncedCount(status.count)
 
       if (query.trim()) {
         const data = await searchCompanies(query)

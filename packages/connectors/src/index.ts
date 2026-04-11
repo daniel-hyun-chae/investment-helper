@@ -1,5 +1,4 @@
 import {
-  CompanyDirectoryEntrySchema,
   FilingEventSchema,
   type CompanyDirectoryEntry,
   type FilingEvent
@@ -135,19 +134,17 @@ function parseCorpDirectoryFromXml(xmlContent: string): CompanyDirectoryEntry[] 
     const corpCode = extractTagValue(block, 'corp_code')
     const corpName = extractTagValue(block, 'corp_name')
 
-    if (!corpCode || !corpName) {
+    if (!corpCode || !corpName || !/^\d{8}$/.test(corpCode)) {
       continue
     }
 
-    entries.push(
-      CompanyDirectoryEntrySchema.parse({
-        corpCode,
-        corpName,
-        corpEngName: extractTagValue(block, 'corp_eng_name') || undefined,
-        stockCode: extractTagValue(block, 'stock_code') || undefined,
-        modifyDate: extractTagValue(block, 'modify_date') || undefined
-      })
-    )
+    entries.push({
+      corpCode,
+      corpName,
+      corpEngName: extractTagValue(block, 'corp_eng_name') || undefined,
+      stockCode: extractTagValue(block, 'stock_code') || undefined,
+      modifyDate: extractTagValue(block, 'modify_date') || undefined
+    })
   }
 
   return entries

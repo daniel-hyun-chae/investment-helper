@@ -25,50 +25,69 @@ if (!workerBase) {
 }
 
 async function syncCompaniesOrFail() {
-  const start = Date.now()
-  const controller = new AbortController()
-  const timer = setTimeout(() => {
-    controller.abort('sync-timeout')
-  }, 150_000)
+  let offset = 0
+  let imported = 0
 
-  let response: Response
-  try {
-    response = await fetch(`${workerBase}/api/companies/sync`, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json'
-      },
-      signal: controller.signal
-    })
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Real-DART sync request timed out after 150s. Worker did not return response in time.')
+  for (let i = 0; i < 300; i += 1) {
+    const url = new URL(`${workerBase}/api/companies/sync`)
+    url.searchParams.set('offset', String(offset))
+    url.searchParams.set('limit', '400')
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort('sync-timeout')
+    }, 40_000)
+
+    let response: Response
+    try {
+      response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          accept: 'application/json'
+        },
+        signal: controller.signal
+      })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Real-DART sync batch timed out at offset=${offset}.`)
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
     }
-    throw error
-  } finally {
-    clearTimeout(timer)
+
+    const payload = (await response.json()) as {
+      ok: boolean
+      imported?: number
+      done?: boolean
+      nextOffset?: number | null
+      error?: string
+      code?: string
+      detail?: string
+    }
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(`Real-DART sync failed: status=${response.status} payload=${JSON.stringify(payload)}`)
+    }
+
+    imported += payload.imported ?? 0
+
+    if (payload.done) {
+      return { imported }
+    }
+
+    if (typeof payload.nextOffset !== 'number') {
+      throw new Error(`Real-DART sync progress invalid at offset=${offset}: ${JSON.stringify(payload)}`)
+    }
+
+    offset = payload.nextOffset
   }
 
-  const elapsed = Date.now() - start
-  // eslint-disable-next-line no-console
-  console.log(`real-dart sync response time: ${elapsed}ms`)
-
-  let payload: unknown = null
-  try {
-    payload = await response.json()
-  } catch {
-    payload = { parseError: true }
-  }
-
-  if (!response.ok) {
-    throw new Error(`Real-DART sync failed: status=${response.status} payload=${JSON.stringify(payload)}`)
-  }
-
-  return payload
+  throw new Error('Real-DART sync exceeded iteration limit.')
 }
 
 test.describe('company summary real OpenDART e2e', () => {
-  test.setTimeout(300_000)
+  test.setTimeout(420_000)
 
   test('sync endpoint responds within timeout using real OpenDART', async () => {
     await syncCompaniesOrFail()

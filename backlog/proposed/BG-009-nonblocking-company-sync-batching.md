@@ -41,8 +41,8 @@ Manual OpenDART corpCode requests succeed, but deployed `POST /api/companies/syn
 ## Task List
 
 - [x] Add worker batched sync API behavior.
-- [ ] Update admin-web sync client and UI flow for batched completion.
-- [ ] Update real-DART e2e sync helper for batch completion.
+- [x] Update admin-web sync client and UI flow for batched completion.
+- [x] Update real-DART e2e sync helper for batch completion.
 - [ ] Run validation and record outcomes.
 - [ ] Move item to done and update backlog summary.
 
@@ -53,6 +53,9 @@ Manual OpenDART corpCode requests succeed, but deployed `POST /api/companies/syn
 - 2026-04-11: Deployed worker `POST /api/companies/sync` still timed out with no response body (even with `offset=0&limit=1`), indicating deployed runtime path is still blocking and likely running older/non-batched code.
 - 2026-04-11: Added batched sync API shape in worker source and replaced XML parser dependency with faster string-scan parser for corpCode payload extraction.
 - 2026-04-11: Real-DART e2e rerun still timed out against currently deployed worker host; this validates deployment/runtime mismatch remains unresolved until worker is redeployed with latest code.
+- 2026-04-11: Reduced per-request sync batch size to 400, added cached-directory short-circuit for offset=0, and added progress fields for UI and e2e looping (`done`, `nextOffset`, `total`, `elapsedMs`).
+- 2026-04-11: Updated web sync flow to iterate batches until done and refresh sync status count from server after completion.
+- 2026-04-11: Updated real-dart e2e sync helper to loop batch sync calls with per-batch timeout instead of one long blocking request.
 
 ## Tests
 

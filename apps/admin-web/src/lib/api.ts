@@ -70,6 +70,9 @@ export async function searchCompanies(query: string): Promise<SearchCompanyItem[
 
 export type SyncCompaniesResult = {
   imported: number
+  total?: number
+  batches?: number
+  cpuYielded?: boolean
   syncSkipped?: boolean
   warningCode?: string
   warningMessage?: string
@@ -77,39 +80,84 @@ export type SyncCompaniesResult = {
 }
 
 export async function syncCompanies(): Promise<SyncCompaniesResult> {
-  const url = new URL('/api/companies/sync', API_BASE)
-  const response = await fetch(url.toString(), { method: 'POST' })
-  if (response.status === 404) {
-    throw new ApiError(
-      'Sync endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
-      404,
-      'API_ENDPOINT_NOT_FOUND'
-    )
-  }
-  const payload = await parseJson<{
-    ok: boolean
-    imported?: number
-    error?: string
-    code?: string
-    detail?: string
-    syncSkipped?: boolean
-    warningCode?: string
-    warningMessage?: string
-    localMode?: boolean
-  }>(response)
+  let importedTotal = 0
+  let total = 0
+  let offset = 0
+  let batches = 0
+  let cpuYielded = false
+  let syncSkipped = false
+  let warningCode: string | undefined
+  let warningMessage: string | undefined
+  let localMode: boolean | undefined
 
-  if (!response.ok || !payload.ok) {
-    const detail = payload.detail ? ` (${payload.detail})` : ''
-    throw new ApiError(`${payload.error ?? 'sync failed'}${detail}`, response.status, payload.code)
+  for (let i = 0; i < 300; i += 1) {
+    const url = new URL('/api/companies/sync', API_BASE)
+    url.searchParams.set('offset', String(offset))
+    url.searchParams.set('limit', '400')
+
+    const response = await fetch(url.toString(), { method: 'POST' })
+    if (response.status === 404) {
+      throw new ApiError(
+        'Sync endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
+        404,
+        'API_ENDPOINT_NOT_FOUND'
+      )
+    }
+
+    const payload = await parseJson<{
+      ok: boolean
+      imported?: number
+      total?: number
+      done?: boolean
+      nextOffset?: number | null
+      cpuYielded?: boolean
+      error?: string
+      code?: string
+      detail?: string
+      syncSkipped?: boolean
+      warningCode?: string
+      warningMessage?: string
+      localMode?: boolean
+    }>(response)
+
+    if (!response.ok || !payload.ok) {
+      const detail = payload.detail ? ` (${payload.detail})` : ''
+      throw new ApiError(`${payload.error ?? 'sync failed'}${detail}`, response.status, payload.code)
+    }
+
+    batches += 1
+    importedTotal += payload.imported ?? 0
+    if (typeof payload.total === 'number') {
+      total = payload.total
+    }
+
+    cpuYielded = cpuYielded || Boolean(payload.cpuYielded)
+    syncSkipped = syncSkipped || Boolean(payload.syncSkipped)
+    warningCode = payload.warningCode ?? warningCode
+    warningMessage = payload.warningMessage ?? warningMessage
+    localMode = payload.localMode ?? localMode
+
+    if (payload.done) {
+      return {
+        imported: importedTotal,
+        total,
+        batches,
+        cpuYielded,
+        syncSkipped,
+        warningCode,
+        warningMessage,
+        localMode
+      }
+    }
+
+    if (typeof payload.nextOffset !== 'number') {
+      throw new ApiError('Sync response missing nextOffset while not done.', 500, 'SYNC_PROGRESS_INVALID')
+    }
+
+    offset = payload.nextOffset
   }
 
-  return {
-    imported: payload.imported ?? 0,
-    syncSkipped: payload.syncSkipped,
-    warningCode: payload.warningCode,
-    warningMessage: payload.warningMessage,
-    localMode: payload.localMode
-  }
+  throw new ApiError('Sync did not complete within batch loop limit.', 500, 'SYNC_LOOP_LIMIT_EXCEEDED')
 }
 
 export async function getCompanySyncStatus(): Promise<{ synced: boolean; count: number }> {
