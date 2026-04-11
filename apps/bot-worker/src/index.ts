@@ -15,6 +15,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
 type Env = {
+  ALLOW_DEV_FIXTURES?: string
+  APP_ENV?: string
+  OPENDART_REFRESH_CHECK?: string
   SUPABASE_URL: string
   SUPABASE_SECRET_KEY: string
   TELEGRAM_BOT_TOKEN: string
@@ -63,6 +66,12 @@ type SubscriptionRow = {
   status: string
 }
 
+type DevFixtureSeedRequest = {
+  corpCode?: string
+  corpName?: string
+  stockCode?: string
+}
+
 const TelegramUpdateSchema = z.object({
   message: z
     .object({
@@ -91,6 +100,54 @@ function json(data: unknown, status = 200): Response {
     status,
     headers: responseHeaders()
   })
+}
+
+function isTruthy(value: string | undefined): boolean {
+  if (!value) {
+    return false
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return !['0', 'false', 'off', 'no'].includes(normalized)
+}
+
+function isDevelopmentEnv(env: Env): boolean {
+  return (env.APP_ENV ?? 'development').toLowerCase() !== 'production'
+}
+
+function shouldCheckOpenDartRefresh(env: Env): boolean {
+  if (env.OPENDART_REFRESH_CHECK === undefined) {
+    return true
+  }
+  return isTruthy(env.OPENDART_REFRESH_CHECK)
+}
+
+function isLocalRequest(request: Request): boolean {
+  const hostname = new URL(request.url).hostname
+  return hostname === '127.0.0.1' || hostname === 'localhost'
+}
+
+function isLocalSupabaseUrl(env: Env): boolean {
+  const raw = (env.SUPABASE_URL ?? '').trim()
+  if (!raw) {
+    return false
+  }
+
+  try {
+    const hostname = new URL(raw).hostname
+    return hostname === '127.0.0.1' || hostname === 'localhost'
+  } catch {
+    return false
+  }
+}
+
+function allowDevFixtures(request: Request, env: Env): boolean {
+  return (
+    isDevelopmentEnv(env) &&
+    isTruthy(env.ALLOW_DEV_FIXTURES) &&
+    isLocalRequest(request) &&
+    isLocalSupabaseUrl(env)
+  )
 }
 
 function chunkArray<T>(input: T[], size: number): T[][] {
@@ -287,17 +344,20 @@ async function shouldRefreshCompanyFinancials(
     throw new Error(`company_financial_points count failed: ${countResult.error.message}`)
   }
 
-  const latestDisclosure = await fetchLatestPeriodicDisclosure(
-    env.OPENDART_API_KEY,
-    corpCode,
-    refreshState?.last_checked_at ?? undefined
-  )
+  const latestDisclosure = shouldCheckOpenDartRefresh(env)
+    ? await fetchLatestPeriodicDisclosure(
+        env.OPENDART_API_KEY,
+        corpCode,
+        refreshState?.last_checked_at ?? undefined
+      )
+    : null
 
   const hasCache = (countResult.count ?? 0) > 0
-  const hasNewDisclosure =
-    latestDisclosure?.rceptNo !== undefined &&
-    latestDisclosure?.rceptNo !== null &&
-    latestDisclosure.rceptNo !== (refreshState?.last_known_rcept_no ?? null)
+  const hasNewDisclosure = shouldCheckOpenDartRefresh(env)
+    ? latestDisclosure?.rceptNo !== undefined &&
+      latestDisclosure?.rceptNo !== null &&
+      latestDisclosure.rceptNo !== (refreshState?.last_known_rcept_no ?? null)
+    : false
 
   return {
     refresh: !hasCache || hasNewDisclosure,
@@ -420,20 +480,14 @@ async function getCompanySummary(
   }
 
   if (!companyResult.data) {
-    await upsertCompanyDirectory(env, supabase)
-    companyResult = await supabase
-      .from('company_directory')
-      .select('corp_code,corp_name')
-      .eq('corp_code', corpCode)
-      .maybeSingle()
-
-    if (companyResult.error) {
-      throw new Error(`company_directory read failed after sync: ${companyResult.error.message}`)
-    }
-
-    if (!companyResult.data) {
-      return json({ ok: false, error: 'Company not found in local directory.' }, 404)
-    }
+    return json(
+      {
+        ok: false,
+        error: 'Company directory not synced. Run POST /api/companies/sync first.',
+        code: 'DIRECTORY_NOT_SYNCED'
+      },
+      409
+    )
   }
 
   const refreshDecision = await shouldRefreshCompanyFinancials(env, supabase, corpCode)
@@ -604,10 +658,35 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
   return json({ ok: true })
 }
 
-async function handleSyncCompanies(env: Env): Promise<Response> {
-  const supabase = createSupabaseClientFromEnv(env)
+async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise<Response> {
   const count = await upsertCompanyDirectory(env, supabase)
   return json({ ok: true, imported: count })
+}
+
+async function handleCompanySync(request: Request, env: Env): Promise<Response> {
+  const supabase = createSupabaseClientFromEnv(env)
+
+  if (request.method === 'GET') {
+    const result = await supabase
+      .from('company_directory')
+      .select('corp_code', { count: 'exact', head: true })
+
+    if (result.error) {
+      return json({ ok: false, error: `sync status failed: ${result.error.message}` }, 500)
+    }
+
+    return json({
+      ok: true,
+      synced: (result.count ?? 0) > 0,
+      count: result.count ?? 0
+    })
+  }
+
+  if (request.method === 'POST') {
+    return syncCompanyDirectory(env, supabase)
+  }
+
+  return json({ ok: false, error: 'Method Not Allowed' }, 405)
 }
 
 async function handleSearchCompanies(request: Request, env: Env): Promise<Response> {
@@ -625,7 +704,14 @@ async function handleSearchCompanies(request: Request, env: Env): Promise<Respon
   }
 
   if ((directoryCount.count ?? 0) === 0) {
-    await upsertCompanyDirectory(env, supabase)
+    return json(
+      {
+        ok: false,
+        error: 'Company directory not synced. Run POST /api/companies/sync first.',
+        code: 'DIRECTORY_NOT_SYNCED'
+      },
+      409
+    )
   }
 
   if (!query) {
@@ -642,6 +728,122 @@ async function handleSearchCompanies(request: Request, env: Env): Promise<Respon
   }
 
   return json({ ok: true, data: rpcResult.data ?? [] })
+}
+
+async function handleDevFixtureSeed(request: Request, env: Env): Promise<Response> {
+  if (!allowDevFixtures(request, env)) {
+    return json({ ok: false, error: 'Not Found' }, 404)
+  }
+
+  const supabase = createSupabaseClientFromEnv(env)
+
+  let payload: DevFixtureSeedRequest = {}
+  try {
+    payload = request.method === 'POST' ? ((await request.json()) as DevFixtureSeedRequest) : {}
+  } catch {
+    payload = {}
+  }
+
+  const corpCode = (payload.corpCode ?? '00126380').trim()
+  const corpName = (payload.corpName ?? 'NAVER').trim()
+  const stockCode = (payload.stockCode ?? '035420').trim()
+
+  const { error: companyError } = await supabase.from('company_directory').upsert(
+    {
+      corp_code: corpCode,
+      corp_name: corpName,
+      corp_eng_name: corpName,
+      stock_code: stockCode,
+      modify_date: '20260411'
+    },
+    { onConflict: 'corp_code' }
+  )
+
+  if (companyError) {
+    return json({ ok: false, error: `fixture company upsert failed: ${companyError.message}` }, 500)
+  }
+
+  const baseYear = getCurrentYearUtc() - 3
+  const fixtureRows = [
+    { fiscal_year: baseYear, fiscal_quarter: 1, revenue: 100000, operating_income: 20000, sga: 30000, cogs: 45000 },
+    { fiscal_year: baseYear, fiscal_quarter: 2, revenue: 110000, operating_income: 22000, sga: 32000, cogs: 47000 },
+    { fiscal_year: baseYear, fiscal_quarter: 3, revenue: 120000, operating_income: 24000, sga: 35000, cogs: 50000 },
+    { fiscal_year: baseYear, fiscal_quarter: 4, revenue: 130000, operating_income: 26000, sga: 36000, cogs: 52000 },
+    { fiscal_year: baseYear + 1, fiscal_quarter: 1, revenue: 135000, operating_income: 27000, sga: 37000, cogs: 53000 },
+    { fiscal_year: baseYear + 1, fiscal_quarter: 2, revenue: 145000, operating_income: 29000, sga: 39000, cogs: 55000 },
+    { fiscal_year: baseYear + 1, fiscal_quarter: 3, revenue: 155000, operating_income: 31000, sga: 41000, cogs: 57000 },
+    { fiscal_year: baseYear + 1, fiscal_quarter: 4, revenue: 165000, operating_income: 33000, sga: 43000, cogs: 59000 }
+  ]
+
+  const { error: cleanupError } = await supabase
+    .from('company_financial_points')
+    .delete()
+    .eq('corp_code', corpCode)
+
+  if (cleanupError) {
+    return json({ ok: false, error: `fixture cleanup failed: ${cleanupError.message}` }, 500)
+  }
+
+  const normalizedRows = fixtureRows.map((row) => ({
+    corp_code: corpCode,
+    basis: 'CFS' as const,
+    fiscal_year: row.fiscal_year,
+    fiscal_quarter: row.fiscal_quarter,
+    revenue: row.revenue,
+    operating_income: row.operating_income,
+    selling_general_administrative_expense: row.sga,
+    cost_of_sales: row.cogs,
+    source_rcept_no: 'fixture'
+  }))
+
+  const { error: pointsError } = await supabase.from('company_financial_points').insert(normalizedRows)
+
+  if (pointsError) {
+    return json({ ok: false, error: `fixture points insert failed: ${pointsError.message}` }, 500)
+  }
+
+  const { error: refreshError } = await supabase.from('company_refresh_state').upsert(
+    {
+      corp_code: corpCode,
+      selected_basis: 'CFS',
+      last_checked_at: new Date().toISOString(),
+      last_known_rcept_no: 'fixture',
+      last_known_rcept_date: '20260411',
+      last_synced_at: new Date().toISOString()
+    },
+    { onConflict: 'corp_code' }
+  )
+
+  if (refreshError) {
+    return json({ ok: false, error: `fixture refresh upsert failed: ${refreshError.message}` }, 500)
+  }
+
+  return json({ ok: true, corpCode, corpName, insertedPoints: normalizedRows.length })
+}
+
+async function handleDevFixtureReset(request: Request, env: Env): Promise<Response> {
+  if (!allowDevFixtures(request, env)) {
+    return json({ ok: false, error: 'Not Found' }, 404)
+  }
+
+  const supabase = createSupabaseClientFromEnv(env)
+
+  const { error: pointsError } = await supabase.from('company_financial_points').delete().neq('corp_code', '')
+  if (pointsError) {
+    return json({ ok: false, error: `fixture reset points failed: ${pointsError.message}` }, 500)
+  }
+
+  const { error: refreshError } = await supabase.from('company_refresh_state').delete().neq('corp_code', '')
+  if (refreshError) {
+    return json({ ok: false, error: `fixture reset refresh failed: ${refreshError.message}` }, 500)
+  }
+
+  const { error: companiesError } = await supabase.from('company_directory').delete().neq('corp_code', '')
+  if (companiesError) {
+    return json({ ok: false, error: `fixture reset directory failed: ${companiesError.message}` }, 500)
+  }
+
+  return json({ ok: true })
 }
 
 async function handleSummaryRequest(request: Request, env: Env, corpCodeRaw: string): Promise<Response> {
@@ -682,11 +884,28 @@ export default {
       }
 
       if (pathname === '/api/opendart/sync-companies' && request.method === 'POST') {
-        return handleSyncCompanies(env)
+        const supabase = createSupabaseClientFromEnv(env)
+        return syncCompanyDirectory(env, supabase)
+      }
+
+      if (pathname === '/api/companies/sync' && (request.method === 'GET' || request.method === 'POST')) {
+        return handleCompanySync(request, env)
       }
 
       if (pathname === '/api/companies/search' && request.method === 'GET') {
         return handleSearchCompanies(request, env)
+      }
+
+      if (pathname === '/api/dev/fixtures/seed' && request.method === 'POST') {
+        return handleDevFixtureSeed(request, env)
+      }
+
+      if (pathname === '/api/dev/fixtures/reset' && request.method === 'POST') {
+        return handleDevFixtureReset(request, env)
+      }
+
+      if (pathname === '/api/dev/fixtures/seed' && request.method === 'GET') {
+        return json({ ok: true, hint: 'use POST /api/dev/fixtures/seed to create deterministic local fixtures' })
       }
 
       const summaryMatch = pathname.match(/^\/api\/companies\/(\d{8})\/summary$/)

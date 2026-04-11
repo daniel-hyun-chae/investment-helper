@@ -14,3 +14,4 @@ Connector polling, normalization, and analysis job enqueueing.
 - OpenDART corpCode zip ingestion populates the local company directory used by company search.
 - Company summary financial ingestion uses first-request fetch and durable cache reuse for repeated requests.
 - Company summary refresh checks use incremental periodic disclosure detection before deciding to re-fetch financial points.
+- Local deterministic development mode can disable upstream refresh checks and use fixture seed data for reproducible e2e behavior.

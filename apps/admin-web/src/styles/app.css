@@ -63,6 +63,34 @@ a {
   font-size: 1rem;
 }
 
+.sync-controls {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.sync-controls button {
+  border: 1px solid #2d6cdf;
+  background: #2d6cdf;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.sync-controls button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sync-controls span {
+  font-size: 0.84rem;
+  color: #4b5563;
+}
+
 .company-result-list {
   list-style: none;
   margin: 0;

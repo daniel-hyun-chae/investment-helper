@@ -1,0 +1,7 @@
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SECRET_KEY=replace-with-local-service-role-key
+TELEGRAM_BOT_TOKEN=dev-telegram-token
+OPENDART_API_KEY=replace-with-opendart-key
+APP_ENV=development
+OPENDART_REFRESH_CHECK=0
+ALLOW_DEV_FIXTURES=1

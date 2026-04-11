@@ -26,12 +26,14 @@ This map describes the initial scaffold for `investment-helper`.
 ### `apps/bot-worker`
 
 - Cloudflare Worker scaffold for Telegram webhook, queue producers/consumers, cron-driven polling, and company summary/search API routes.
+- Includes local-development fixture seed/reset endpoints for deterministic e2e testing.
 - `wrangler.toml` contains worker name, queue bindings, and cron placeholder.
 
 ### `apps/admin-web`
 
 - Vite SPA app with TanStack Router client-side routes for company search and company summary trends.
 - Includes Korean-first translation-ready labels and responsive summary chart UI.
+- Includes explicit sync-first UX for company directory availability.
 
 ## Shared Packages
 
@@ -52,6 +54,11 @@ This map describes the initial scaffold for `investment-helper`.
 ### `infra/cloudflare`
 
 - Deployment notes for worker, queue, cron, and admin hosting.
+
+## Local developer tooling
+
+- `playwright.config.ts` and `tests/e2e/` provide local-only realistic e2e tests.
+- `scripts/local-e2e.sh` and `scripts/configure-local-env.mjs` support repeatable local stack/e2e workflows.
 
 ### `infra/supabase`
 
