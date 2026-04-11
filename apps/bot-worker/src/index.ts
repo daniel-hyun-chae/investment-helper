@@ -320,6 +320,67 @@ async function upsertCompanyDirectory(env: Env, supabase: SupabaseClient): Promi
   return rows.length
 }
 
+async function upsertCompanyDirectoryBatch(
+  env: Env,
+  supabase: SupabaseClient,
+  offset: number,
+  limit: number
+): Promise<{
+  imported: number
+  total: number
+  nextOffset: number | null
+  done: boolean
+}> {
+  const directory = await fetchAndParseCorpDirectory(env.OPENDART_API_KEY)
+  const total = directory.length
+
+  const safeOffset = Math.max(0, offset)
+  const safeLimit = Math.max(1, Math.min(limit, 5000))
+  const slice = directory.slice(safeOffset, safeOffset + safeLimit)
+
+  console.log('company_sync_batch', {
+    total,
+    offset: safeOffset,
+    limit: safeLimit,
+    batchSize: slice.length
+  })
+
+  if (slice.length === 0) {
+    return {
+      imported: 0,
+      total,
+      nextOffset: null,
+      done: true
+    }
+  }
+
+  const rows = slice.map((entry) => ({
+    corp_code: entry.corpCode,
+    corp_name: entry.corpName,
+    corp_eng_name: entry.corpEngName ?? null,
+    stock_code: entry.stockCode ?? null,
+    modify_date: entry.modifyDate ?? null
+  }))
+
+  const { error } = await supabase
+    .from('company_directory')
+    .upsert(rows, { onConflict: 'corp_code', ignoreDuplicates: false })
+
+  if (error) {
+    throw new Error(`company_directory upsert failed: ${error.message}`)
+  }
+
+  const nextOffset = safeOffset + rows.length
+  const done = nextOffset >= total
+
+  return {
+    imported: rows.length,
+    total,
+    nextOffset: done ? null : nextOffset,
+    done
+  }
+}
+
 async function shouldRefreshCompanyFinancials(
   env: Env,
   supabase: SupabaseClient,
@@ -667,9 +728,29 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
 }
 
 async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise<Response> {
+  return syncCompanyDirectoryBatch({ env, supabase, offset: 0, limit: 2000 })
+}
+
+async function syncCompanyDirectoryBatch({
+  env,
+  supabase,
+  offset,
+  limit
+}: {
+  env: Env
+  supabase: SupabaseClient
+  offset: number
+  limit: number
+}): Promise<Response> {
   try {
-    const count = await upsertCompanyDirectory(env, supabase)
-    return json({ ok: true, imported: count })
+    const result = await upsertCompanyDirectoryBatch(env, supabase, offset, limit)
+    return json({
+      ok: true,
+      imported: result.imported,
+      total: result.total,
+      done: result.done,
+      nextOffset: result.nextOffset
+    })
   } catch (error) {
     if (error instanceof OpenDartSyncError) {
       const transientSyncCodes = new Set([
@@ -720,7 +801,7 @@ async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise
       return jsonApiError(
         {
           ok: false,
-          error: 'Failed to sync company directory.',
+          error: 'Failed to sync company directory batch.',
           code: 'DIRECTORY_SYNC_FAILED',
           detail: error.message
         },
@@ -731,7 +812,7 @@ async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise
     return jsonApiError(
       {
         ok: false,
-        error: 'Failed to sync company directory.',
+        error: 'Failed to sync company directory batch.',
         code: 'DIRECTORY_SYNC_FAILED'
       },
       500
@@ -778,6 +859,7 @@ async function localSyncCompanyDirectory(supabase: SupabaseClient): Promise<Resp
 
 async function handleCompanySync(request: Request, env: Env): Promise<Response> {
   const supabase = createSupabaseClientFromEnv(env)
+  const url = new URL(request.url)
 
   if (request.method === 'GET') {
     const result = await supabase
@@ -800,7 +882,15 @@ async function handleCompanySync(request: Request, env: Env): Promise<Response> 
       return localSyncCompanyDirectory(supabase)
     }
 
-    return syncCompanyDirectory(env, supabase)
+    const offset = Number(url.searchParams.get('offset') ?? '0')
+    const limit = Number(url.searchParams.get('limit') ?? '2000')
+
+    return syncCompanyDirectoryBatch({
+      env,
+      supabase,
+      offset: Number.isFinite(offset) ? offset : 0,
+      limit: Number.isFinite(limit) ? limit : 2000
+    })
   }
 
   return json({ ok: false, error: 'Method Not Allowed' }, 405)

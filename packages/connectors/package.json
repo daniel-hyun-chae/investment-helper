@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@investment-helper/contracts": "workspace:*",
-    "fast-xml-parser": "^4.5.0",
     "jszip": "^3.10.1",
     "zod": "^3.24.2"
   },

@@ -130,6 +130,7 @@ project/
 | `pnpm dev:sync-companies` | Explicitly sync company directory before search |
 | `pnpm dev:seed-fixtures` | Seed deterministic local fixture data for summary/search |
 | `pnpm e2e:local` | Run Playwright local e2e tests (not CI) |
+| `pnpm e2e:real-dart` | Run Playwright real OpenDART e2e (requires deployed/local worker + valid key) |
 
 ## Environment variables
 

@@ -42,6 +42,7 @@ Change-Orchestrator appends and maintains:
 
 | ID | Title | Status |
 |---|---|---|
+| BG-008 | Add and run real OpenDART e2e automation | Done |
 | BG-005 | Stabilize company sync and search error handling with deterministic local sync mode | Done |
 | BG-007 | Fix company directory sync 503 handling and strengthen e2e sync assertions | Done |
 | BG-006 | Stabilize Playwright local e2e workflow and fixture-driven tests | Done |

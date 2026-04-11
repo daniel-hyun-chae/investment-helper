@@ -4,7 +4,6 @@ import {
   type CompanyDirectoryEntry,
   type FilingEvent
 } from '@investment-helper/contracts'
-import { XMLParser } from 'fast-xml-parser'
 import JSZip from 'jszip'
 
 export type ConnectorContext = {
@@ -109,6 +108,49 @@ function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
   })
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+}
+
+function extractTagValue(block: string, tag: string): string {
+  const pattern = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i')
+  const matched = block.match(pattern)
+  return decodeXmlEntities((matched?.[1] ?? '').trim())
+}
+
+function parseCorpDirectoryFromXml(xmlContent: string): CompanyDirectoryEntry[] {
+  const entries: CompanyDirectoryEntry[] = []
+  const listPattern = /<list>([\s\S]*?)<\/list>/gi
+
+  for (const matched of xmlContent.matchAll(listPattern)) {
+    const block = matched[1] ?? ''
+
+    const corpCode = extractTagValue(block, 'corp_code')
+    const corpName = extractTagValue(block, 'corp_name')
+
+    if (!corpCode || !corpName) {
+      continue
+    }
+
+    entries.push(
+      CompanyDirectoryEntrySchema.parse({
+        corpCode,
+        corpName,
+        corpEngName: extractTagValue(block, 'corp_eng_name') || undefined,
+        stockCode: extractTagValue(block, 'stock_code') || undefined,
+        modifyDate: extractTagValue(block, 'modify_date') || undefined
+      })
+    )
+  }
+
+  return entries
 }
 
 function formatDateYYYYMMDD(value: Date): string {
@@ -428,43 +470,16 @@ export async function fetchAndParseCorpDirectory(apiKey: string): Promise<Compan
     throw new Error('Failed to read corpCode xml content')
   }
 
-  const parser = new XMLParser({
-    ignoreAttributes: true,
-    trimValues: true
-  })
+  const parsedEntries = parseCorpDirectoryFromXml(xmlContent)
 
-  const parsed = parser.parse(xmlContent) as {
-    result?: {
-      list?: Array<{
-        corp_code?: string
-        corp_name?: string
-        corp_eng_name?: string
-        stock_code?: string
-        modify_date?: string
-      }>
-    }
-  }
-
-  const rawList = parsed.result?.list ?? []
-
-  if (!Array.isArray(rawList) || rawList.length === 0) {
+  if (!Array.isArray(parsedEntries) || parsedEntries.length === 0) {
     throw new OpenDartSyncError(
       'OpenDART corpCode response did not contain company entries.',
       'OPENDART_CORPCODE_EMPTY'
     )
   }
 
-  return rawList
-    .map((entry) =>
-      CompanyDirectoryEntrySchema.parse({
-        corpCode: entry.corp_code ?? '',
-        corpName: entry.corp_name ?? '',
-        corpEngName: entry.corp_eng_name || undefined,
-        stockCode: entry.stock_code || undefined,
-        modifyDate: entry.modify_date || undefined
-      })
-    )
-    .filter((entry) => entry.corpCode && entry.corpName)
+  return parsedEntries
 }
 
 export async function fetchLatestPeriodicDisclosure(
