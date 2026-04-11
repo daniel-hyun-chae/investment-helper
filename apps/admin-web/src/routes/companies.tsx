@@ -70,7 +70,12 @@ function CompaniesRoute() {
       }
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.code === 'OPENDART_SERVICE_UNAVAILABLE' || error.code === 'OPENDART_RATE_LIMITED') {
+        if (
+          error.code === 'OPENDART_SERVICE_UNAVAILABLE' ||
+          error.code === 'OPENDART_RATE_LIMITED' ||
+          error.code === 'OPENDART_NETWORK_ERROR' ||
+          error.code === 'OPENDART_INVALID_ZIP_RESPONSE'
+        ) {
           setError(`${messages.syncServiceUnavailable} (${error.message})`)
           return
         }

@@ -672,7 +672,14 @@ async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise
     return json({ ok: true, imported: count })
   } catch (error) {
     if (error instanceof OpenDartSyncError) {
-      if (error.code === 'OPENDART_SERVICE_UNAVAILABLE' || error.code === 'OPENDART_RATE_LIMITED') {
+      const transientSyncCodes = new Set([
+        'OPENDART_SERVICE_UNAVAILABLE',
+        'OPENDART_RATE_LIMITED',
+        'OPENDART_NETWORK_ERROR',
+        'OPENDART_INVALID_ZIP_RESPONSE'
+      ])
+
+      if (transientSyncCodes.has(error.code)) {
         const fallbackCountResult = await supabase
           .from('company_directory')
           .select('corp_code', { count: 'exact', head: true })
