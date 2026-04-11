@@ -30,7 +30,7 @@ This map describes the initial scaffold for `investment-helper`.
 
 ### `apps/admin-web`
 
-- TanStack Start + Vite app with company search route and company summary trend route.
+- Vite SPA app with TanStack Router client-side routes for company search and company summary trends.
 - Includes Korean-first translation-ready labels and responsive summary chart UI.
 
 ## Shared Packages
