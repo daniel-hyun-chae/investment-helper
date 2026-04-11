@@ -50,6 +50,7 @@ type ApiListResponse<T> = {
 type OpenDartAccountRow = {
   rcept_no?: string
   fs_div?: string
+  account_id?: string
   account_nm?: string
   thstrm_amount?: string
   thstrm_add_amount?: string
@@ -336,10 +337,27 @@ const METRIC_PATTERNS: Record<FinancialMetricKey, RegExp[]> = {
   costOfSales: [/\uB9E4\uCD9C\uC6D0\uAC00/]
 }
 
+const METRIC_ACCOUNT_IDS: Record<FinancialMetricKey, string[]> = {
+  revenue: ['ifrs-full_Revenue', 'ifrs_Revenue', 'ifrs-full_GrossProfit'],
+  operatingIncome: ['dart_OperatingIncomeLoss', 'ifrs-full_ProfitLossFromOperatingActivities'],
+  sellingGeneralAdministrativeExpense: [
+    'dart_SellingGeneralAdministrativeExpenses',
+    'ifrs-full_SellingGeneralAndAdministrativeExpense'
+  ],
+  costOfSales: ['dart_CostOfSales', 'ifrs-full_CostOfSales']
+}
+
 function extractMetricsForBasis(rows: OpenDartAccountRow[], basis: 'CFS' | 'OFS'): Record<FinancialMetricKey, number | null> {
   const basisRows = rows.filter((row) => row.fs_div === basis)
 
   const findMetric = (metric: FinancialMetricKey): number | null => {
+    for (const row of basisRows) {
+      const accountId = row.account_id ?? ''
+      if (METRIC_ACCOUNT_IDS[metric].some((id) => accountId === id)) {
+        return chooseAmountField(row)
+      }
+    }
+
     for (const row of basisRows) {
       const accountName = row.account_nm ?? ''
       if (METRIC_PATTERNS[metric].some((pattern) => pattern.test(accountName))) {

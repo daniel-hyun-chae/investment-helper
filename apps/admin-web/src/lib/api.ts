@@ -93,7 +93,7 @@ export async function syncCompanies(): Promise<SyncCompaniesResult> {
   for (let i = 0; i < 300; i += 1) {
     const url = new URL('/api/companies/sync', API_BASE)
     url.searchParams.set('offset', String(offset))
-    url.searchParams.set('limit', '400')
+    url.searchParams.set('limit', '1200')
 
     const response = await fetch(url.toString(), { method: 'POST' })
     if (response.status === 404) {

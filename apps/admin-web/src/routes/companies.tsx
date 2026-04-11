@@ -63,7 +63,7 @@ function CompaniesRoute() {
       } else {
         const summary =
           syncResult.total && syncResult.total > 0
-            ? `${messages.searchSyncDone} (${syncResult.imported}/${syncResult.total}, batches=${syncResult.batches ?? 1})`
+            ? `${messages.searchSyncDone} (${messages.searchSyncProgressPrefix}: ${syncResult.imported}/${syncResult.total}, batches=${syncResult.batches ?? 1})`
             : messages.searchSyncDone
         setNotice(summary)
       }

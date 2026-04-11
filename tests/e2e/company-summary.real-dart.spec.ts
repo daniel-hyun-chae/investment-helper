@@ -31,7 +31,7 @@ async function syncCompaniesOrFail() {
   for (let i = 0; i < 300; i += 1) {
     const url = new URL(`${workerBase}/api/companies/sync`)
     url.searchParams.set('offset', String(offset))
-    url.searchParams.set('limit', '400')
+    url.searchParams.set('limit', '1200')
 
     const controller = new AbortController()
     const timer = setTimeout(() => {
