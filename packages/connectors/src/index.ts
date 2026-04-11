@@ -75,6 +75,18 @@ export type NormalizedFinancialResult = {
   selectedBasis: 'CFS' | 'OFS'
 }
 
+export class OpenDartSyncError extends Error {
+  readonly code: string
+  readonly detail?: string
+
+  constructor(message: string, code: string, detail?: string) {
+    super(message)
+    this.name = 'OpenDartSyncError'
+    this.code = code
+    this.detail = detail
+  }
+}
+
 function formatDateYYYYMMDD(value: Date): string {
   const year = String(value.getUTCFullYear())
   const month = String(value.getUTCMonth() + 1).padStart(2, '0')
@@ -284,14 +296,35 @@ function metricCoverageCount(points: QuarterlyMetricPoint[]): number {
 }
 
 export async function fetchAndParseCorpDirectory(apiKey: string): Promise<CompanyDirectoryEntry[]> {
+  if (!apiKey?.trim()) {
+    throw new OpenDartSyncError('OpenDART API key is missing.', 'OPENDART_API_KEY_MISSING')
+  }
+
   const response = await fetch(buildOpenDartUrl('corpCode.xml', { crtfc_key: apiKey }))
 
   if (!response.ok) {
-    throw new Error(`Failed to download corpCode zip: ${response.status}`)
+    throw new OpenDartSyncError(
+      `Failed to download corpCode zip (HTTP ${response.status}).`,
+      'OPENDART_HTTP_ERROR'
+    )
   }
 
+  const contentType = response.headers.get('content-type') ?? ''
   const zipBuffer = await response.arrayBuffer()
-  const zip = await JSZip.loadAsync(zipBuffer)
+
+  let zip: JSZip
+  try {
+    zip = await JSZip.loadAsync(zipBuffer)
+  } catch {
+    const previewBytes = new Uint8Array(zipBuffer.slice(0, Math.min(zipBuffer.byteLength, 256)))
+    const previewText = new TextDecoder('utf-8', { fatal: false }).decode(previewBytes).trim()
+
+    throw new OpenDartSyncError(
+      'OpenDART corpCode response is not a valid zip payload.',
+      'OPENDART_INVALID_ZIP_RESPONSE',
+      previewText || `content-type=${contentType || 'unknown'}`
+    )
+  }
 
   const xmlEntry = Object.keys(zip.files).find((path) => path.toLowerCase().endsWith('.xml'))
   if (!xmlEntry) {
@@ -321,6 +354,14 @@ export async function fetchAndParseCorpDirectory(apiKey: string): Promise<Compan
   }
 
   const rawList = parsed.result?.list ?? []
+
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    throw new OpenDartSyncError(
+      'OpenDART corpCode response did not contain company entries.',
+      'OPENDART_CORPCODE_EMPTY'
+    )
+  }
+
   return rawList
     .map((entry) =>
       CompanyDirectoryEntrySchema.parse({

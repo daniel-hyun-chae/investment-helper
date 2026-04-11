@@ -20,6 +20,7 @@ function CompaniesRoute() {
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [items, setItems] = useState<SearchCompanyItem[]>([])
   const [synced, setSynced] = useState<boolean | null>(null)
   const [syncedCount, setSyncedCount] = useState(0)
@@ -51,16 +52,22 @@ function CompaniesRoute() {
   async function onSync(): Promise<void> {
     setSyncing(true)
     setError(null)
+    setNotice(null)
     try {
       const count = await syncCompanies()
       setSynced(true)
       setSyncedCount(count)
+      setNotice(messages.searchSyncDone)
       if (query.trim()) {
         const data = await searchCompanies(query)
         setItems(data)
       }
-    } catch {
-      setError(messages.fetchError)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setError(`${messages.searchSyncFailed} (${error.message})`)
+      } else {
+        setError(messages.searchSyncFailed)
+      }
     } finally {
       setSyncing(false)
     }
@@ -76,6 +83,7 @@ function CompaniesRoute() {
 
     setLoading(true)
     setError(null)
+    setNotice(null)
     try {
       if (nextQuery.trim().length < 2) {
         setItems([])
@@ -88,7 +96,7 @@ function CompaniesRoute() {
         setSynced(false)
         setError(messages.searchSyncRequired)
       } else {
-        setError(messages.fetchError)
+        setError(error instanceof ApiError ? error.message : messages.fetchError)
       }
       setItems([])
     } finally {
@@ -128,6 +136,7 @@ function CompaniesRoute() {
 
       {loading ? <p>{messages.loading}</p> : null}
       {error ? <p className="error-text">{error}</p> : null}
+      {notice ? <p>{notice}</p> : null}
 
       {!loading && !error && query.trim() && items.length === 0 ? <p>{messages.searchEmpty}</p> : null}
 

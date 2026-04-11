@@ -21,6 +21,13 @@ export class ApiError extends Error {
   }
 }
 
+type ErrorPayload = {
+  ok: boolean
+  error?: string
+  code?: string
+  detail?: string
+}
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8787'
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -48,10 +55,11 @@ export async function searchCompanies(query: string): Promise<SearchCompanyItem[
 export async function syncCompanies(): Promise<number> {
   const url = new URL('/api/companies/sync', API_BASE)
   const response = await fetch(url.toString(), { method: 'POST' })
-  const payload = await parseJson<{ ok: boolean; imported?: number; error?: string }>(response)
+  const payload = await parseJson<{ ok: boolean; imported?: number; error?: string; code?: string; detail?: string }>(response)
 
   if (!response.ok || !payload.ok) {
-    throw new ApiError(payload.error ?? 'sync failed', response.status)
+    const detail = payload.detail ? ` (${payload.detail})` : ''
+    throw new ApiError(`${payload.error ?? 'sync failed'}${detail}`, response.status, payload.code)
   }
 
   return payload.imported ?? 0
@@ -105,9 +113,9 @@ export async function fetchCompanySummary(
   url.searchParams.set('range', range)
 
   const response = await fetch(url.toString())
-  const payload = await parseJson<{ ok: boolean; data?: CompanySummaryResponse; error?: string }>(response)
+  const payload = await parseJson<{ ok: boolean; data?: CompanySummaryResponse; error?: string; code?: string }>(response)
   if (!response.ok || !payload.ok || !payload.data) {
-    throw new Error(payload.error ?? 'summary fetch failed')
+    throw new ApiError(payload.error ?? 'summary fetch failed', response.status, payload.code)
   }
 
   return payload.data

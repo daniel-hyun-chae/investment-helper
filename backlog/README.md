@@ -11,7 +11,7 @@ The backlog tracks all implementation work that changes product behavior, archit
 ## Conventions
 
 - ID format: `BG-NNN`.
-- Current next ID: `BG-005`.
+- Current next ID: `BG-006`.
 - Priority scale: `P0` (critical) to `P3` (low).
 - Status lifecycle: `Proposed` -> `Ready` -> `In Progress` -> `Done`.
 
@@ -42,6 +42,7 @@ Change-Orchestrator appends and maintains:
 
 | ID | Title | Status |
 |---|---|---|
+| BG-005 | Stabilize company sync and search error handling with deterministic local sync mode | Done |
 | BG-004 | Local dev orchestration, local e2e workflow, and company search reliability | Done |
 | BG-003 | Fix Cloudflare Pages deployment for admin web static routing | Done |
 | BG-002 | OpenDART company summary trend graph with cached refresh checks | Done |

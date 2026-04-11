@@ -9,6 +9,7 @@ Company search and summary trend visualization backed by OpenDART data with loca
 - Users can search companies by Korean name (fuzzy match) from the local company directory.
 - The local company directory is sourced from OpenDART corpCode data and reused across users.
 - Company search requires explicit directory sync and returns a sync-required response when directory data is missing.
+- Directory sync failures return actionable error payloads (code + detail) so UI can display clear remediation guidance.
 - Opening a company summary returns cached trend data when available.
 - If cached trend data is missing, the system fetches from OpenDART, normalizes, stores, then returns results.
 - The system performs incremental refresh checks for newer periodic disclosures and refreshes cache only when needed.

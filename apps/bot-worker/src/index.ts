@@ -9,6 +9,7 @@ import {
   fetchAndParseCorpDirectory,
   fetchLatestPeriodicDisclosure,
   fetchNormalizedFinancials,
+  OpenDartSyncError,
   type QuarterlyMetricPoint
 } from '@investment-helper/connectors'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -72,6 +73,13 @@ type DevFixtureSeedRequest = {
   stockCode?: string
 }
 
+type ApiErrorPayload = {
+  ok: false
+  error: string
+  code?: string
+  detail?: string
+}
+
 const TelegramUpdateSchema = z.object({
   message: z
     .object({
@@ -100,6 +108,10 @@ function json(data: unknown, status = 200): Response {
     status,
     headers: responseHeaders()
   })
+}
+
+function jsonApiError(payload: ApiErrorPayload, status: number): Response {
+  return json(payload, status)
 }
 
 function isTruthy(value: string | undefined): boolean {
@@ -659,8 +671,43 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
 }
 
 async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise<Response> {
-  const count = await upsertCompanyDirectory(env, supabase)
-  return json({ ok: true, imported: count })
+  try {
+    const count = await upsertCompanyDirectory(env, supabase)
+    return json({ ok: true, imported: count })
+  } catch (error) {
+    if (error instanceof OpenDartSyncError) {
+      return jsonApiError(
+        {
+          ok: false,
+          error: error.message,
+          code: error.code,
+          detail: error.detail
+        },
+        502
+      )
+    }
+
+    if (error instanceof Error) {
+      return jsonApiError(
+        {
+          ok: false,
+          error: 'Failed to sync company directory.',
+          code: 'DIRECTORY_SYNC_FAILED',
+          detail: error.message
+        },
+        500
+      )
+    }
+
+    return jsonApiError(
+      {
+        ok: false,
+        error: 'Failed to sync company directory.',
+        code: 'DIRECTORY_SYNC_FAILED'
+      },
+      500
+    )
+  }
 }
 
 async function handleCompanySync(request: Request, env: Env): Promise<Response> {

@@ -19,6 +19,19 @@ test.beforeEach(async () => {
   await resetAndSeedFixtures()
 })
 
+test('sync-required error is shown when directory is empty', async ({ page }) => {
+  await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
+
+  await page.goto('/companies')
+  await page.getByRole('textbox', { name: '\uD68C\uC0AC \uAC80\uC0C9' }).fill('NAVER')
+
+  await expect(
+    page.getByText(
+      '\uD68C\uC0AC \uB514\uB809\uD130\uB9AC\uAC00 \uB3D9\uAE30\uD654\uB418\uC9C0 \uC54A\uC544 \uAC80\uC0C9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uB3D9\uAE30\uD654\uD558\uC138\uC694.'
+    )
+  ).toBeVisible()
+})
+
 test('search shows company and opens summary', async ({ page }) => {
   await page.goto('/companies')
 

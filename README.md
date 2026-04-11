@@ -77,6 +77,8 @@ pnpm dev:seed-fixtures
 pnpm e2e:local
 ```
 
+If sync fails in UI, the message now includes OpenDART upstream context (for example invalid zip response, missing key, or HTTP failure) so you can diagnose quickly.
+
 Or run helper that starts web/worker and runs e2e:
 
 ```bash
