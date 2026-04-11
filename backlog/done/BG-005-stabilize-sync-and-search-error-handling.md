@@ -57,6 +57,7 @@ Users are blocked by generic sync/search failures (`데이터를 불러오지 �
 - 2026-04-11: Worker sync endpoint now returns structured error payloads with code/detail, and web UI now surfaces actionable sync failure messages instead of only generic fetch errors.
 - 2026-04-11: Extended Playwright suite with sync-required scenario coverage in addition to seeded-success summary/search flows.
 - 2026-04-11: This execution environment still cannot keep long-running dev servers alive for in-session browser e2e execution; local e2e remains runnable via `pnpm e2e:local:stack` in user environment.
+- 2026-04-11: Added deploy guardrails in `.github/workflows/deploy.yml` to prevent shipping admin web with localhost API base URL. Build now happens after worker deploy using resolved worker URL.
 
 ## Tests
 

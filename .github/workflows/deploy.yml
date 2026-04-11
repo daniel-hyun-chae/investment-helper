@@ -95,11 +95,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build workspace
-        env:
-          VITE_API_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
-        run: pnpm -r --if-present build
-
       - name: Link Supabase project
         run: |
           set -euo pipefail
@@ -192,6 +187,39 @@ jobs:
             echo "Could not auto-detect worker URL from deploy output. Will fall back to PUBLIC_BASE_URL for health checks."
           fi
 
+      - name: Resolve web API base URL
+        run: |
+          set -euo pipefail
+
+          api_base="${WORKER_BASE_URL:-${PUBLIC_BASE_URL:-}}"
+
+          if [ -z "$api_base" ]; then
+            echo "Missing API base URL. Ensure worker URL detection works or PUBLIC_BASE_URL is set to Worker URL."
+            exit 1
+          fi
+
+          if echo "$api_base" | grep -Eq '(^http://127\.0\.0\.1|^http://localhost|\.pages\.dev)'; then
+            echo "Invalid API base URL for deployed web: $api_base"
+            echo "PUBLIC_BASE_URL must point to Worker URL (workers.dev), not localhost or pages.dev."
+            exit 1
+          fi
+
+          echo "VITE_API_BASE_URL=$api_base" >> "$GITHUB_ENV"
+          echo "Resolved VITE_API_BASE_URL=$api_base"
+
+      - name: Build workspace
+        env:
+          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+        run: pnpm -r --if-present build
+
+      - name: Verify admin web build API target
+        run: |
+          set -euo pipefail
+          if grep -R "127.0.0.1:8787" apps/admin-web/dist >/dev/null 2>&1; then
+            echo "Admin web build still contains localhost API base."
+            exit 1
+          fi
+
       - name: Deploy admin web
         run: |
           pages_project_name="${CLOUDFLARE_PAGES_PROJECT_NAME:-investment-helper-admin}"
@@ -201,9 +229,9 @@ jobs:
           fi
 
           if [ -d "apps/admin-web/.output/public" ]; then
-            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/.output/public --project-name "$pages_project_name"
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/.output/public --project-name "$pages_project_name" --branch main
           elif [ -d "apps/admin-web/dist" ]; then
-            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/dist --project-name "$pages_project_name"
+            pnpm -C apps/bot-worker exec wrangler pages deploy ../admin-web/dist --project-name "$pages_project_name" --branch main
           else
             echo "No deployable admin output found"
             exit 1

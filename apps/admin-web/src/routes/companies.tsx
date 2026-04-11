@@ -64,7 +64,8 @@ function CompaniesRoute() {
       }
     } catch (error) {
       if (error instanceof ApiError) {
-        setError(`${messages.searchSyncFailed} (${error.message})`)
+        const hint = error.code === 'API_ENDPOINT_NOT_FOUND' ? ` ${messages.apiTargetHint}` : ''
+        setError(`${messages.searchSyncFailed} (${error.message})${hint}`)
       } else {
         setError(messages.searchSyncFailed)
       }
@@ -96,7 +97,10 @@ function CompaniesRoute() {
         setSynced(false)
         setError(messages.searchSyncRequired)
       } else {
-        setError(error instanceof ApiError ? error.message : messages.fetchError)
+        const hint = error instanceof ApiError && error.code === 'API_ENDPOINT_NOT_FOUND'
+          ? ` ${messages.apiTargetHint}`
+          : ''
+        setError(error instanceof ApiError ? `${error.message}${hint}` : messages.fetchError)
       }
       setItems([])
     } finally {

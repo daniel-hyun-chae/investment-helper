@@ -79,6 +79,12 @@ pnpm e2e:local
 
 If sync fails in UI, the message now includes OpenDART upstream context (for example invalid zip response, missing key, or HTTP failure) so you can diagnose quickly.
 
+Production deploy guardrails:
+
+- Deploy workflow now resolves `VITE_API_BASE_URL` after worker deploy, preferring detected `WORKER_BASE_URL`.
+- It fails deployment if API base looks like localhost/pages URL.
+- It verifies built admin bundle does not contain `127.0.0.1:8787` before Pages deploy.
+
 Or run helper that starts web/worker and runs e2e:
 
 ```bash

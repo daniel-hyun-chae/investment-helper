@@ -31,8 +31,17 @@ type ErrorPayload = {
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8787'
 
 async function parseJson<T>(response: Response): Promise<T> {
-  const data = (await response.json()) as T
-  return data
+  try {
+    const data = (await response.json()) as T
+    return data
+  } catch {
+    const fallbackText = await response.text()
+    throw new ApiError(
+      `API response was not valid JSON (status ${response.status}): ${fallbackText.slice(0, 160)}`,
+      response.status,
+      'INVALID_API_RESPONSE'
+    )
+  }
 }
 
 export async function searchCompanies(query: string): Promise<SearchCompanyItem[]> {
@@ -45,6 +54,13 @@ export async function searchCompanies(query: string): Promise<SearchCompanyItem[
   url.searchParams.set('limit', '20')
 
   const response = await fetch(url.toString())
+  if (response.status === 404) {
+    throw new ApiError(
+      'API endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
   const payload = await parseJson<{ ok: boolean; data?: SearchCompanyItem[]; error?: string; code?: string }>(response)
   if (!response.ok || !payload.ok) {
     throw new ApiError(payload.error ?? 'search failed', response.status, payload.code)
@@ -55,6 +71,13 @@ export async function searchCompanies(query: string): Promise<SearchCompanyItem[
 export async function syncCompanies(): Promise<number> {
   const url = new URL('/api/companies/sync', API_BASE)
   const response = await fetch(url.toString(), { method: 'POST' })
+  if (response.status === 404) {
+    throw new ApiError(
+      'Sync endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
   const payload = await parseJson<{ ok: boolean; imported?: number; error?: string; code?: string; detail?: string }>(response)
 
   if (!response.ok || !payload.ok) {
@@ -68,6 +91,13 @@ export async function syncCompanies(): Promise<number> {
 export async function getCompanySyncStatus(): Promise<{ synced: boolean; count: number }> {
   const url = new URL('/api/companies/sync', API_BASE)
   const response = await fetch(url.toString())
+  if (response.status === 404) {
+    throw new ApiError(
+      'Sync status endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
   const payload = await parseJson<{ ok: boolean; synced?: boolean; count?: number; error?: string }>(response)
 
   if (!response.ok || !payload.ok) {
@@ -87,6 +117,13 @@ export async function devSeedFixtures(corpCode = '00126380', corpName = 'NAVER')
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ corpCode, corpName, stockCode: '035420' })
   })
+  if (response.status === 404) {
+    throw new ApiError(
+      'Dev fixture endpoint not found. Ensure local worker dev mode is running.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
 
   const payload = await parseJson<{ ok: boolean; error?: string }>(response)
   if (!response.ok || !payload.ok) {
@@ -97,6 +134,13 @@ export async function devSeedFixtures(corpCode = '00126380', corpName = 'NAVER')
 export async function devResetFixtures(): Promise<void> {
   const url = new URL('/api/dev/fixtures/reset', API_BASE)
   const response = await fetch(url.toString(), { method: 'POST' })
+  if (response.status === 404) {
+    throw new ApiError(
+      'Dev fixture reset endpoint not found. Ensure local worker dev mode is running.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
   const payload = await parseJson<{ ok: boolean; error?: string }>(response)
   if (!response.ok || !payload.ok) {
     throw new ApiError(payload.error ?? 'dev fixture reset failed', response.status)
@@ -113,6 +157,13 @@ export async function fetchCompanySummary(
   url.searchParams.set('range', range)
 
   const response = await fetch(url.toString())
+  if (response.status === 404) {
+    throw new ApiError(
+      'Summary endpoint not found. Check VITE_API_BASE_URL points to Worker URL.',
+      404,
+      'API_ENDPOINT_NOT_FOUND'
+    )
+  }
   const payload = await parseJson<{ ok: boolean; data?: CompanySummaryResponse; error?: string; code?: string }>(response)
   if (!response.ok || !payload.ok || !payload.data) {
     throw new ApiError(payload.error ?? 'summary fetch failed', response.status, payload.code)
