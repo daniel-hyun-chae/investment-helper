@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { Outlet, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
@@ -167,6 +167,8 @@ function CompaniesRoute() {
           </li>
         ))}
       </ul>
+
+      <Outlet />
     </main>
   )
 }

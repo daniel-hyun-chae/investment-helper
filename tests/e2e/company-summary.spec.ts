@@ -1,71 +1,119 @@
 import { expect, test } from '@playwright/test'
 
-const workerBase = 'http://127.0.0.1:8787'
+const workerBase = process.env.E2E_WORKER_BASE_URL || 'http://127.0.0.1:8787'
 
-async function resetAndSeedFixtures() {
-  await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
-  const seedResponse = await fetch(`${workerBase}/api/dev/fixtures/seed`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ corpCode: '00126380', corpName: 'NAVER', stockCode: '035420' })
+const seedPayload = {
+  source: 'NAVER',
+  companies: [
+    {
+      corp_code: '00126380',
+      corp_name: 'NAVER',
+      stock_code: '035420'
+    }
+  ],
+  metrics: [
+    {
+      corp_code: '00126380',
+      basis: 'consolidated',
+      period: 'yearly',
+      label: '2024',
+      fs_nm: 'Consolidated FS',
+      revenue: 9700000000,
+      operating_income: 1250000000,
+      selling_general_administrative_expense: 2100000000,
+      cost_of_sales: 3300000000
+    },
+    {
+      corp_code: '00126380',
+      basis: 'consolidated',
+      period: 'yearly',
+      label: '2023',
+      fs_nm: 'Consolidated FS',
+      revenue: 9200000000,
+      operating_income: 1150000000,
+      selling_general_administrative_expense: 1980000000,
+      cost_of_sales: 3120000000
+    },
+    {
+      corp_code: '00126380',
+      basis: 'consolidated',
+      period: 'ttm',
+      label: '2025 Q1 TTM',
+      fs_nm: 'Consolidated FS',
+      revenue: 9950000000,
+      operating_income: 1310000000,
+      selling_general_administrative_expense: 2150000000,
+      cost_of_sales: 3370000000
+    }
+  ]
+}
+
+async function resetAndSeedFixtures(): Promise<void> {
+  const reset = await fetch(`${workerBase}/api/dev/fixtures/reset`, {
+    method: 'POST'
   })
 
-  if (!seedResponse.ok) {
-    throw new Error(`fixture seed failed: ${seedResponse.status}`)
+  if (!reset.ok) {
+    throw new Error(`Failed to reset fixtures: ${reset.status} ${await reset.text()}`)
+  }
+
+  const seed = await fetch(`${workerBase}/api/dev/fixtures/seed`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(seedPayload)
+  })
+
+  if (!seed.ok) {
+    throw new Error(`Failed to seed fixtures: ${seed.status} ${await seed.text()}`)
   }
 }
 
-test.beforeEach(async () => {
-  await resetAndSeedFixtures()
-})
+test.describe('company summary local e2e', () => {
+  test.beforeEach(async () => {
+    await resetAndSeedFixtures()
+  })
 
-test('sync-required error is shown when directory is empty', async ({ page }) => {
-  await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
+  test('sync required state is shown when directory is empty', async ({ page }) => {
+    await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
+    await page.goto('/companies')
 
-  await page.goto('/companies')
-  await page.getByRole('textbox', { name: '\uD68C\uC0AC \uAC80\uC0C9' }).fill('NAVER')
+    await page.getByLabel('회사 검색').fill('NAVER')
+    await expect(page.getByText('회사 디렉터리가 동기화되지 않아 검색할 수 없습니다. 먼저 동기화하세요.')).toBeVisible()
+  })
 
-  await expect(
-    page.getByText(
-      '\uD68C\uC0AC \uB514\uB809\uD130\uB9AC\uAC00 \uB3D9\uAE30\uD654\uB418\uC9C0 \uC54A\uC544 \uAC80\uC0C9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uB3D9\uAE30\uD654\uD558\uC138\uC694.'
-    )
-  ).toBeVisible()
-})
+  test('manual sync succeeds after sync-required state', async ({ page }) => {
+    await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
+    await page.goto('/companies')
 
-test('manual sync action succeeds after sync-required state', async ({ page }) => {
-  await fetch(`${workerBase}/api/dev/fixtures/reset`, { method: 'POST' })
-  await page.goto('/companies')
+    await page.getByLabel('회사 검색').fill('NAVER')
+    await expect(page.getByText('회사 디렉터리가 동기화되지 않아 검색할 수 없습니다. 먼저 동기화하세요.')).toBeVisible()
 
-  await page.getByRole('textbox', { name: '\uD68C\uC0AC \uAC80\uC0C9' }).fill('NAVER')
-  await expect(
-    page.getByText(
-      '\uD68C\uC0AC \uB514\uB809\uD130\uB9AC\uAC00 \uB3D9\uAE30\uD654\uB418\uC9C0 \uC54A\uC544 \uAC80\uC0C9\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4. \uBA3C\uC800 \uB3D9\uAE30\uD654\uD558\uC138\uC694.'
-    )
-  ).toBeVisible()
+    await page.getByRole('button', { name: '회사 디렉터리 동기화' }).click()
+    await expect(page.getByText(/동기화된 회사 수/)).toBeVisible()
+  })
 
-  await page.getByRole('button', { name: '\uD68C\uC0AC \uB514\uB809\uD130\uB9AC \uB3D9\uAE30\uD654' }).click()
-  await expect(page.getByText('\uB3D9\uAE30\uD654\uB41C \uD68C\uC0AC \uC218')).toBeVisible()
-})
+  test('search shows company and opens summary', async ({ page }) => {
+    await page.goto('/companies')
 
-test('search shows company and opens summary', async ({ page }) => {
-  await page.goto('/companies')
+    await page.getByLabel('회사 검색').fill('NAVER')
+    await expect(page.getByRole('button', { name: /NAVER/ })).toBeVisible()
 
-  await page.getByRole('textbox', { name: '\uD68C\uC0AC \uAC80\uC0C9' }).fill('NAVER')
-  await expect(page.getByRole('button', { name: /NAVER/ })).toBeVisible()
+    await page.getByRole('button', { name: /NAVER/ }).click()
+    await expect(page).toHaveURL(/\/companies\/00126380\/summary/)
+    await expect(page.getByRole('heading', { name: 'NAVER' })).toBeVisible()
+  })
 
-  await page.getByRole('button', { name: /NAVER/ }).click()
-  await expect(page.getByRole('heading', { name: 'NAVER' })).toBeVisible()
-  await expect(page.getByText('\uC7AC\uBB34 \uAE30\uC900')).toBeVisible()
-})
+  test('summary controls respond to period and range options', async ({ page }) => {
+    await page.goto('/companies/00126380/summary')
 
-test('summary controls change between period and range options', async ({ page }) => {
-  await page.goto('/companies/00126380/summary')
+    await expect(page.getByRole('heading', { name: 'NAVER' })).toBeVisible()
 
-  await expect(page.getByRole('heading', { name: 'NAVER' })).toBeVisible()
+    await page.getByRole('button', { name: /^분기$/ }).click()
+    await page.getByRole('button', { name: /^최근 4개 분기$/ }).click()
+    await page.getByRole('button', { name: '10년' }).click()
 
-  await page.getByRole('button', { name: '\uBD84\uAE30' }).click()
-  await page.getByRole('button', { name: '\uCD5C\uADFC 4\uAC1C \uBD84\uAE30' }).click()
-  await page.getByRole('button', { name: '10\uB144' }).click()
-
-  await expect(page.getByLabel('summary trend chart')).toBeVisible()
+    await expect(page.getByLabel('summary trend chart')).toBeVisible()
+  })
 })

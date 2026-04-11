@@ -13,7 +13,7 @@
     "build": "pnpm -r --if-present build",
     "dev:web": "pnpm -C apps/admin-web dev",
     "dev:worker": "pnpm -C apps/bot-worker dev",
-    "supabase:start": "pnpm dlx supabase@latest start --workdir infra",
+    "supabase:start": "pnpm dlx supabase@latest start --workdir infra --exclude edge-runtime,logflare,vector",
     "supabase:stop": "pnpm dlx supabase@latest stop --workdir infra",
     "supabase:status": "pnpm dlx supabase@latest status --workdir infra",
     "supabase:db:push": "pnpm dlx supabase@latest db push --workdir infra --local --include-all",
@@ -22,8 +22,9 @@
     "dev:seed-fixtures": "curl -sS -X POST http://127.0.0.1:8787/api/dev/fixtures/seed -H \"content-type: application/json\" -d '{}'",
     "dev:reset-fixtures": "curl -sS -X POST http://127.0.0.1:8787/api/dev/fixtures/reset",
     "dev:all": "concurrently -k -n worker,web \"pnpm dev:worker\" \"pnpm dev:web\"",
-    "e2e:local": "playwright test",
-    "e2e:local:headed": "playwright test --headed",
+    "e2e:install-browsers": "PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright} pnpm exec playwright install chromium",
+    "e2e:local": "pnpm exec playwright test",
+    "e2e:local:headed": "pnpm exec playwright test --headed",
     "e2e:local:stack": "./scripts/local-e2e.sh"
   },
   "pnpm": {

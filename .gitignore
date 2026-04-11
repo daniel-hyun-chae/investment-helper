@@ -11,9 +11,13 @@ coverage/
 .wrangler/
 .vercel/
 .turbo/
+test-results/
+playwright-report/
 
 # local worker env
 apps/bot-worker/.dev.vars
+infra/supabase/.branches/
+infra/supabase/.temp/
 
 # TanStack Start / Vite outputs
 .output/

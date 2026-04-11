@@ -9,7 +9,8 @@
   "containerUser": "node",
   "updateRemoteUserUID": false,
   "remoteEnv": {
-    "CI": "true"
+    "CI": "true",
+    "PLAYWRIGHT_BROWSERS_PATH": "/home/node/.cache/ms-playwright"
   },
   "postCreateCommand": "bash -lc 'set -e; bash scripts/devcontainer-fix-home-perms.sh; bash scripts/devcontainer-install-opencode.sh; (pnpm -C apps/bot-worker install --frozen-lockfile || pnpm -C apps/bot-worker install); (pnpm -C apps/admin-web install --frozen-lockfile || pnpm -C apps/admin-web install); (pnpm install --frozen-lockfile || pnpm install)'",
   "postStartCommand": "bash scripts/devcontainer-fix-home-perms.sh",

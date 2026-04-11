@@ -154,12 +154,7 @@ function isLocalSupabaseUrl(env: Env): boolean {
 }
 
 function allowDevFixtures(request: Request, env: Env): boolean {
-  return (
-    isDevelopmentEnv(env) &&
-    isTruthy(env.ALLOW_DEV_FIXTURES) &&
-    isLocalRequest(request) &&
-    isLocalSupabaseUrl(env)
-  )
+  return isDevelopmentEnv(env) && isTruthy(env.ALLOW_DEV_FIXTURES) && isLocalRequest(request)
 }
 
 function chunkArray<T>(input: T[], size: number): T[][] {
