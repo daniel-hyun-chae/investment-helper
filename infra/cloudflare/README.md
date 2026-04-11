@@ -11,6 +11,7 @@
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_WORKER_NAME` (optional, defaults to `investment-helper-bot-worker`)
 - `PUBLIC_BASE_URL`
 - `TELEGRAM_BOT_TOKEN`
 - `OPENDART_API_KEY`

@@ -57,7 +57,51 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
       return json({ ok: false, error: 'Company code required' }, 400)
     }
 
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY)
+    const rawSupabaseUrl = env.SUPABASE_URL ?? ''
+    const normalizedSupabaseUrl = rawSupabaseUrl.trim().replace(/^['"]|['"]$/g, '')
+
+    let parsedSupabaseUrl: URL | null = null
+    try {
+      parsedSupabaseUrl = new URL(normalizedSupabaseUrl)
+    } catch {
+      parsedSupabaseUrl = null
+    }
+
+    if (!normalizedSupabaseUrl || !parsedSupabaseUrl || parsedSupabaseUrl.protocol !== 'https:') {
+      console.error('invalid_supabase_url_configuration', {
+        rawSupabaseUrl,
+        normalizedSupabaseUrl,
+        hasSupabaseSecretKey: Boolean(env.SUPABASE_SECRET_KEY),
+        hint: 'SUPABASE_URL must look like https://<project-ref>.supabase.co'
+      })
+
+      return json({ ok: false, error: 'Invalid SUPABASE_URL configuration' }, 500)
+    }
+
+    if (!env.SUPABASE_SECRET_KEY) {
+      return json({ ok: false, error: 'Missing SUPABASE_SECRET_KEY configuration' }, 500)
+    }
+
+    console.log('watch_command_received', {
+      companyCode,
+      chatId,
+      supabaseHost: parsedSupabaseUrl.host,
+      hasSupabaseSecretKey: true
+    })
+
+    let supabase
+    try {
+      supabase = createClient(normalizedSupabaseUrl, env.SUPABASE_SECRET_KEY)
+    } catch (error) {
+      console.error('supabase_client_init_failed', {
+        message: error instanceof Error ? error.message : String(error),
+        rawSupabaseUrl,
+        normalizedSupabaseUrl,
+        supabaseHost: parsedSupabaseUrl.host
+      })
+      return json({ ok: false, error: 'Supabase client initialization failed' }, 500)
+    }
+
     const { error } = await supabase.from('subscriptions').upsert(
       {
         telegram_user_id: String(chatId),
@@ -98,21 +142,28 @@ async function handleTelegramWebhook(request: Request, env: Env): Promise<Respon
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url)
+    try {
+      const { pathname } = new URL(request.url)
 
-    if (pathname === '/health') {
-      return json({ ok: true, service: 'bot-worker' })
+      if (pathname === '/health') {
+        return json({ ok: true, service: 'bot-worker' })
+      }
+
+      if (pathname === '/telegram/webhook' && request.method === 'POST') {
+        return handleTelegramWebhook(request, env)
+      }
+
+      if (pathname === '/admin/health') {
+        return json({ ok: true, ingestion: 'unknown', queues: 'configured' })
+      }
+
+      return json({ ok: false, error: 'Not Found' }, 404)
+    } catch (error) {
+      console.error('worker_fetch_failed', {
+        message: error instanceof Error ? error.message : String(error)
+      })
+      return json({ ok: false, error: 'Internal worker error' }, 500)
     }
-
-    if (pathname === '/telegram/webhook' && request.method === 'POST') {
-      return handleTelegramWebhook(request, env)
-    }
-
-    if (pathname === '/admin/health') {
-      return json({ ok: true, ingestion: 'unknown', queues: 'configured' })
-    }
-
-    return json({ ok: false, error: 'Not Found' }, 404)
   },
 
   async queue(batch: MessageBatch<AnalysisJob>): Promise<void> {
