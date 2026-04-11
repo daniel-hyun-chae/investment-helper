@@ -14,19 +14,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     redis-tools \
   && rm -rf /var/lib/apt/lists/*
 
-# Optional corporate CA certificate setup.
-# Uncomment and provide your certificate path if needed.
-# ARG CA_CERT_FILE=.devcontainer/certs/corporate-ca.crt
-# COPY ${CA_CERT_FILE} /usr/local/share/ca-certificates/corporate-ca.crt
-# RUN update-ca-certificates
-# ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
-# ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ARG CA_CERT_FILE=.devcontainer/certs/Koerber_root_CA.crt
+COPY ${CA_CERT_FILE} /usr/share/ca-certificates/Koerber_root_CA.crt
+RUN echo "Koerber_root_CA.crt" >> /etc/ca-certificates.conf && update-ca-certificates
+
+ENV NODE_EXTRA_CA_CERTS=/usr/share/ca-certificates/Koerber_root_CA.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # OpenCode CLI (Layer 1 of 2): baked into image
 RUN set -eux; \
-  curl -fsSL https://opencode.ai/install | sh; \
+  if curl -fsSL https://opencode.ai/install | bash; then \
+    echo "[devcontainer] OpenCode bootstrap install succeeded"; \
+  else \
+    echo "[devcontainer] Warning: OpenCode bootstrap install failed; postCreate installer will retry"; \
+  fi; \
   if [ ! -x /usr/local/bin/opencode ]; then \
     if [ -x /root/.opencode/bin/opencode ]; then \
       ln -sf /root/.opencode/bin/opencode /usr/local/bin/opencode; \
