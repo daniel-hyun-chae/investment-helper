@@ -64,6 +64,11 @@ function CompaniesRoute() {
       }
     } catch (error) {
       if (error instanceof ApiError) {
+        if (error.code === 'OPENDART_SERVICE_UNAVAILABLE' || error.code === 'OPENDART_RATE_LIMITED') {
+          setError(`${messages.syncServiceUnavailable} (${error.message})`)
+          return
+        }
+
         const hint = error.code === 'API_ENDPOINT_NOT_FOUND' ? ` ${messages.apiTargetHint}` : ''
         setError(`${messages.searchSyncFailed} (${error.message})${hint}`)
       } else {

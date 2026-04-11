@@ -101,6 +101,16 @@ function redactApiKey(input: string, apiKey: string): string {
   return output
 }
 
+function shouldRetryStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
+
+function waitMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
 function formatDateYYYYMMDD(value: Date): string {
   const year = String(value.getUTCFullYear())
   const month = String(value.getUTCMonth() + 1).padStart(2, '0')
@@ -315,18 +325,54 @@ export async function fetchAndParseCorpDirectory(apiKey: string): Promise<Compan
   }
 
   const requestUrl = buildOpenDartUrl('corpCode.xml', { crtfc_key: apiKey })
-  let response: Response
-  try {
-    response = await fetch(requestUrl, {
-      redirect: 'manual',
-      headers: {
-        accept: 'application/octet-stream,application/zip,*/*',
-        'user-agent': 'investment-helper/1.0 (+corp-directory-sync)'
+  const retryDelaysMs = [500, 1500, 3000]
+  let response: Response | null = null
+  let lastError: unknown
+
+  for (let attempt = 0; attempt < retryDelaysMs.length + 1; attempt += 1) {
+    try {
+      response = await fetch(requestUrl, {
+        redirect: 'manual',
+        headers: {
+          accept: 'application/octet-stream,application/zip,*/*',
+          'user-agent': 'investment-helper/1.0 (+corp-directory-sync)'
+        }
+      })
+
+      if (!shouldRetryStatus(response.status) || attempt === retryDelaysMs.length) {
+        break
       }
-    })
-  } catch (error) {
-    const detail = error instanceof Error ? redactApiKey(error.message, apiKey) : undefined
+
+      await waitMs(retryDelaysMs[attempt])
+      continue
+    } catch (error) {
+      lastError = error
+      if (attempt === retryDelaysMs.length) {
+        break
+      }
+      await waitMs(retryDelaysMs[attempt])
+    }
+  }
+
+  if (!response) {
+    const detail = lastError instanceof Error ? redactApiKey(lastError.message, apiKey) : undefined
     throw new OpenDartSyncError('OpenDART request failed before receiving response.', 'OPENDART_NETWORK_ERROR', detail)
+  }
+
+  if (response.status === 429) {
+    throw new OpenDartSyncError(
+      'OpenDART rate limit reached while requesting corpCode. Retry later.',
+      'OPENDART_RATE_LIMITED',
+      `status=429`
+    )
+  }
+
+  if (response.status >= 500) {
+    throw new OpenDartSyncError(
+      `OpenDART service unavailable while requesting corpCode (HTTP ${response.status}).`,
+      'OPENDART_SERVICE_UNAVAILABLE',
+      `status=${response.status}`
+    )
   }
 
   if (response.status >= 300 && response.status < 400) {

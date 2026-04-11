@@ -59,6 +59,7 @@ Users are blocked by generic sync/search failures (`데이터를 불러오지 �
 - 2026-04-11: This execution environment still cannot keep long-running dev servers alive for in-session browser e2e execution; local e2e remains runnable via `pnpm e2e:local:stack` in user environment.
 - 2026-04-11: Added deploy guardrails in `.github/workflows/deploy.yml` to prevent shipping admin web with localhost API base URL. Build now happens after worker deploy using resolved worker URL.
 - 2026-04-11: Added corpCode request redirect hardening (`redirect: manual`) and explicit OpenDART redirect error code mapping for `/error1.html` (`OPENDART_KEY_OR_ACCESS_DENIED`) to avoid opaque infinite redirect failures.
+- 2026-04-11: Added retry/backoff handling for corpCode sync transient failures (429/5xx) with explicit error codes (`OPENDART_RATE_LIMITED`, `OPENDART_SERVICE_UNAVAILABLE`) and clearer UI guidance for retryable outages.
 
 ## Tests
 
