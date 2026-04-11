@@ -18,6 +18,7 @@ import { z } from 'zod'
 type Env = {
   ALLOW_DEV_FIXTURES?: string
   APP_ENV?: string
+  LOCAL_SYNC_MODE?: string
   OPENDART_REFRESH_CHECK?: string
   SUPABASE_URL: string
   SUPABASE_SECRET_KEY: string
@@ -671,6 +672,32 @@ async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise
     return json({ ok: true, imported: count })
   } catch (error) {
     if (error instanceof OpenDartSyncError) {
+      if (error.code === 'OPENDART_SERVICE_UNAVAILABLE' || error.code === 'OPENDART_RATE_LIMITED') {
+        const fallbackCountResult = await supabase
+          .from('company_directory')
+          .select('corp_code', { count: 'exact', head: true })
+
+        if (!fallbackCountResult.error && (fallbackCountResult.count ?? 0) > 0) {
+          return json({
+            ok: true,
+            imported: fallbackCountResult.count ?? 0,
+            syncSkipped: true,
+            warningCode: error.code,
+            warningMessage: error.message
+          })
+        }
+
+        return jsonApiError(
+          {
+            ok: false,
+            error: error.message,
+            code: error.code,
+            detail: error.detail
+          },
+          503
+        )
+      }
+
       return jsonApiError(
         {
           ok: false,
@@ -705,6 +732,43 @@ async function syncCompanyDirectory(env: Env, supabase: SupabaseClient): Promise
   }
 }
 
+async function localSyncCompanyDirectory(supabase: SupabaseClient): Promise<Response> {
+  const fixtureRows: CompanyDirectoryRow[] = [
+    {
+      corp_code: '00126380',
+      corp_name: 'NAVER',
+      corp_eng_name: 'NAVER',
+      stock_code: '035420',
+      modify_date: '20260411'
+    },
+    {
+      corp_code: '00164779',
+      corp_name: 'KAKAO',
+      corp_eng_name: 'KAKAO',
+      stock_code: '035720',
+      modify_date: '20260411'
+    }
+  ]
+
+  const { error } = await supabase
+    .from('company_directory')
+    .upsert(fixtureRows, { onConflict: 'corp_code', ignoreDuplicates: false })
+
+  if (error) {
+    return jsonApiError(
+      {
+        ok: false,
+        error: 'Failed to sync company directory.',
+        code: 'DIRECTORY_SYNC_FAILED',
+        detail: error.message
+      },
+      500
+    )
+  }
+
+  return json({ ok: true, imported: fixtureRows.length, localMode: true })
+}
+
 async function handleCompanySync(request: Request, env: Env): Promise<Response> {
   const supabase = createSupabaseClientFromEnv(env)
 
@@ -725,6 +789,10 @@ async function handleCompanySync(request: Request, env: Env): Promise<Response> 
   }
 
   if (request.method === 'POST') {
+    if (allowDevFixtures(request, env) && isTruthy(env.LOCAL_SYNC_MODE)) {
+      return localSyncCompanyDirectory(supabase)
+    }
+
     return syncCompanyDirectory(env, supabase)
   }
 

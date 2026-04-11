@@ -11,6 +11,7 @@ Company search and summary trend visualization backed by OpenDART data with loca
 - Company search requires explicit directory sync and returns a sync-required response when directory data is missing.
 - Directory sync failures return actionable error payloads (code + detail) so UI can display clear remediation guidance.
 - Temporary OpenDART outage/rate-limit conditions are surfaced as retryable sync errors and are retried with short backoff before failure is returned.
+- When OpenDART is temporarily unavailable but a local company directory cache already exists, sync returns success with a warning and keeps existing cached directory data available.
 - Opening a company summary returns cached trend data when available.
 - If cached trend data is missing, the system fetches from OpenDART, normalizes, stores, then returns results.
 - The system performs incremental refresh checks for newer periodic disclosures and refreshes cache only when needed.
@@ -21,3 +22,4 @@ Company search and summary trend visualization backed by OpenDART data with loca
 - UI labels are Korean-first and organized in a translation-ready message structure.
 - The summary response includes a market-cap availability contract that is extensible for a future right-axis source.
 - Local development supports deterministic fixture seeding endpoints for realistic e2e checks without external API dependency.
+- Local development supports deterministic manual directory sync mode for e2e checks without external OpenDART dependency.

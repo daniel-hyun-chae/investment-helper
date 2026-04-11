@@ -48,7 +48,8 @@ const workerDevVars = [
   `OPENDART_API_KEY=${process.env.OPENDART_API_KEY ?? 'dev-opendart-key'}`,
   'APP_ENV=development',
   'OPENDART_REFRESH_CHECK=0',
-  'ALLOW_DEV_FIXTURES=1'
+  'ALLOW_DEV_FIXTURES=1',
+  'LOCAL_SYNC_MODE=1'
 ].join('\n')
 
 const adminEnvLocal = [

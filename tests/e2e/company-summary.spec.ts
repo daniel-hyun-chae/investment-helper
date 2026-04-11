@@ -92,6 +92,8 @@ test.describe('company summary local e2e', () => {
 
     await page.getByRole('button', { name: '회사 디렉터리 동기화' }).click()
     await expect(page.getByText(/동기화된 회사 수/)).toBeVisible()
+    await expect(page.getByRole('button', { name: /NAVER/ })).toBeVisible()
+    await expect(page.getByText('회사 디렉터리 동기화에 실패했습니다. OpenDART 키, 네트워크, 응답형식을 확인하세요.')).toHaveCount(0)
   })
 
   test('search shows company and opens summary', async ({ page }) => {

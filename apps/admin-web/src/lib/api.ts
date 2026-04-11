@@ -68,7 +68,15 @@ export async function searchCompanies(query: string): Promise<SearchCompanyItem[
   return payload.data ?? []
 }
 
-export async function syncCompanies(): Promise<number> {
+export type SyncCompaniesResult = {
+  imported: number
+  syncSkipped?: boolean
+  warningCode?: string
+  warningMessage?: string
+  localMode?: boolean
+}
+
+export async function syncCompanies(): Promise<SyncCompaniesResult> {
   const url = new URL('/api/companies/sync', API_BASE)
   const response = await fetch(url.toString(), { method: 'POST' })
   if (response.status === 404) {
@@ -78,14 +86,30 @@ export async function syncCompanies(): Promise<number> {
       'API_ENDPOINT_NOT_FOUND'
     )
   }
-  const payload = await parseJson<{ ok: boolean; imported?: number; error?: string; code?: string; detail?: string }>(response)
+  const payload = await parseJson<{
+    ok: boolean
+    imported?: number
+    error?: string
+    code?: string
+    detail?: string
+    syncSkipped?: boolean
+    warningCode?: string
+    warningMessage?: string
+    localMode?: boolean
+  }>(response)
 
   if (!response.ok || !payload.ok) {
     const detail = payload.detail ? ` (${payload.detail})` : ''
     throw new ApiError(`${payload.error ?? 'sync failed'}${detail}`, response.status, payload.code)
   }
 
-  return payload.imported ?? 0
+  return {
+    imported: payload.imported ?? 0,
+    syncSkipped: payload.syncSkipped,
+    warningCode: payload.warningCode,
+    warningMessage: payload.warningMessage,
+    localMode: payload.localMode
+  }
 }
 
 export async function getCompanySyncStatus(): Promise<{ synced: boolean; count: number }> {

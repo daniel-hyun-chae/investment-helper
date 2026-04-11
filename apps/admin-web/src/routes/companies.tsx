@@ -54,10 +54,16 @@ function CompaniesRoute() {
     setError(null)
     setNotice(null)
     try {
-      const count = await syncCompanies()
+      const syncResult = await syncCompanies()
       setSynced(true)
-      setSyncedCount(count)
-      setNotice(messages.searchSyncDone)
+      setSyncedCount(syncResult.imported)
+
+      if (syncResult.syncSkipped) {
+        setNotice(syncResult.warningMessage ?? messages.searchSyncUsingCache)
+      } else {
+        setNotice(messages.searchSyncDone)
+      }
+
       if (query.trim()) {
         const data = await searchCompanies(query)
         setItems(data)
