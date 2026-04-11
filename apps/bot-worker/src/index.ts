@@ -398,6 +398,7 @@ async function shouldRefreshCompanyFinancials(
   supabase: SupabaseClient,
   corpCode: string
 ): Promise<{
+  hasCache: boolean
   refresh: boolean
   latestDisclosureRceptNo: string | null
   latestDisclosureRceptDate: string | null
@@ -426,6 +427,18 @@ async function shouldRefreshCompanyFinancials(
     throw new Error(`company_financial_points count failed: ${countResult.error.message}`)
   }
 
+  const hasCache = (countResult.count ?? 0) > 0
+
+  if (!hasCache) {
+    return {
+      hasCache: false,
+      refresh: true,
+      latestDisclosureRceptNo: null,
+      latestDisclosureRceptDate: null,
+      refreshCheckWarning: null
+    }
+  }
+
   let latestDisclosure: { rceptNo: string; rceptDate: string } | null = null
   let refreshCheckWarning: { code: string; message: string; detail?: string } | null = null
 
@@ -452,7 +465,6 @@ async function shouldRefreshCompanyFinancials(
     }
   }
 
-  const hasCache = (countResult.count ?? 0) > 0
   const hasNewDisclosure = shouldCheckOpenDartRefresh(env)
     ? latestDisclosure?.rceptNo !== undefined &&
       latestDisclosure?.rceptNo !== null &&
@@ -460,6 +472,7 @@ async function shouldRefreshCompanyFinancials(
     : false
 
   return {
+    hasCache,
     refresh: !hasCache || hasNewDisclosure,
     latestDisclosureRceptNo: latestDisclosure?.rceptNo ?? null,
     latestDisclosureRceptDate: latestDisclosure?.rceptDate ?? null,
@@ -471,11 +484,12 @@ async function refreshCompanyFinancials(
   env: Env,
   supabase: SupabaseClient,
   corpCode: string,
+  yearsWindow: number,
   latestDisclosureRceptNo: string | null,
   latestDisclosureRceptDate: string | null
 ): Promise<'CFS' | 'OFS'> {
   const endYear = getCurrentYearUtc()
-  const startYear = endYear - 10
+  const startYear = Math.max(2000, endYear - yearsWindow + 1)
   const normalized = await fetchNormalizedFinancials(env.OPENDART_API_KEY, corpCode, startYear, endYear)
 
   const { error: deleteError } = await supabase
@@ -541,26 +555,17 @@ async function refreshCompanyFinancials(
   return normalized.selectedBasis
 }
 
-async function determineSelectedBasis(
-  supabase: SupabaseClient,
-  corpCode: string,
-  preferredBasis: 'CFS' | 'OFS'
-): Promise<'CFS' | 'OFS'> {
-  const preferredCount = await supabase
-    .from('company_financial_points')
-    .select('id', { count: 'exact', head: true })
-    .eq('corp_code', corpCode)
-    .eq('basis', preferredBasis)
-
-  if (preferredCount.error) {
-    throw new Error(`preferred basis count failed: ${preferredCount.error.message}`)
+function yearsWindowForSummary(period: 'yearly' | 'quarterly' | 'ttm', range: '5' | '10'): number {
+  const years = Number(range)
+  if (!Number.isFinite(years) || years <= 0) {
+    return 5
   }
 
-  if ((preferredCount.count ?? 0) > 0) {
-    return preferredBasis
+  if (period === 'ttm') {
+    return years + 1
   }
 
-  return preferredBasis === 'CFS' ? 'OFS' : 'CFS'
+  return years
 }
 
 async function getCompanySummary(
@@ -603,10 +608,12 @@ async function getCompanySummary(
 
   let selectedBasis: 'CFS' | 'OFS' = 'CFS'
   if (refreshDecision.refresh) {
+    const yearsWindow = yearsWindowForSummary(period, range)
     selectedBasis = await refreshCompanyFinancials(
       env,
       supabase,
       corpCode,
+      yearsWindow,
       refreshDecision.latestDisclosureRceptNo,
       refreshDecision.latestDisclosureRceptDate
     )
@@ -641,9 +648,7 @@ async function getCompanySummary(
     }
   }
 
-  selectedBasis = await determineSelectedBasis(supabase, corpCode, selectedBasis)
-
-  const pointsResult = await supabase
+  let pointsResult = await supabase
     .from('company_financial_points')
     .select(
       'corp_code,basis,fiscal_year,fiscal_quarter,revenue,operating_income,selling_general_administrative_expense,cost_of_sales'
@@ -655,6 +660,28 @@ async function getCompanySummary(
 
   if (pointsResult.error) {
     throw new Error(`company_financial_points read failed: ${pointsResult.error.message}`)
+  }
+
+  if ((pointsResult.data ?? []).length === 0) {
+    const fallbackBasis = selectedBasis === 'CFS' ? 'OFS' : 'CFS'
+    const fallbackResult = await supabase
+      .from('company_financial_points')
+      .select(
+        'corp_code,basis,fiscal_year,fiscal_quarter,revenue,operating_income,selling_general_administrative_expense,cost_of_sales'
+      )
+      .eq('corp_code', corpCode)
+      .eq('basis', fallbackBasis)
+      .order('fiscal_year', { ascending: true })
+      .order('fiscal_quarter', { ascending: true })
+
+    if (fallbackResult.error) {
+      throw new Error(`company_financial_points fallback read failed: ${fallbackResult.error.message}`)
+    }
+
+    if ((fallbackResult.data ?? []).length > 0) {
+      selectedBasis = fallbackBasis
+      pointsResult = fallbackResult
+    }
   }
 
   const quarterlyPoints = toQuarterlyMetricPoints((pointsResult.data ?? []) as CompanyFinancialPointRow[])

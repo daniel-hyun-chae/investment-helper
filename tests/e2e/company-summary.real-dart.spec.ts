@@ -107,6 +107,8 @@ test.describe('company summary real OpenDART e2e', () => {
 
     await expect(page).toHaveURL(/\/companies\/\d{8}\/summary/, { timeout: 30_000 })
     await expect(page.getByLabel('summary trend chart')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Worker exceeded CPU time limit.')).toHaveCount(0)
+    await expect(page.getByText('Too many subrequests by single Worker invocation.')).toHaveCount(0)
   })
 
   test('direct company summary open works after real sync', async ({ page }) => {
@@ -125,5 +127,6 @@ test.describe('company summary real OpenDART e2e', () => {
 
     await page.goto(`/companies/${corpMatch[1]}/summary?period=yearly&range=5`)
     await expect(page.getByLabel('summary trend chart')).toBeVisible({ timeout: 45_000 })
+    await expect(page.getByText('Too many redirects')).toHaveCount(0)
   })
 })
